@@ -1,0 +1,144 @@
+### $Revision: 1.4 $ ($Date: 1999/07/21 23:07:22 $)
+
+***********************************************************************
+* CONTENTS
+***********************************************************************
+
+ 1. Introduction
+ 2. Installing the Distribution
+ 3. Configuring and Running the Foundry
+ 4. Manifest
+ 5. Where to go for Help/Bug Reports
+
+--------------------------------------------------------------------------
+1. Introduction
+--------------------------------------------------------------------------
+
+This is a v0.1.13 or later release of the Actor Foundry, a Java-based
+programming environment for building actor systems.  The foundry is
+structured as a set of interfaces which describe the behavior of key
+components of the system.  A pure-Java implementation is provided for
+each such component.  Thus, the foundry is "portable" in the sense
+that a fully functional pure-Java implementation exists.
+
+This file describes the Windows95/NT binary distribution of the
+foundry.  Currently, the foundry is only distributed in binary form
+for these platforms.  However, it is possible to build from scratch on
+these platforms by obtaining the raw source and compiling within the
+Cygwin32 UNIX environment for Windows 95/NT.  See the file
+README.Cygwin32 for more details.
+
+--------------------------------------------------------------------------
+2. Installing the Distribution
+--------------------------------------------------------------------------
+
+The pre-compiled binary distribution contains only those files
+necessary to run the foundry.  
+
+Currently, the Win32 distribution does not include an install script
+so you'll have to perform the install manually.  It doesn't really
+matter where you install the foundry files.  However, you should
+ensure that the "bin" directory is added to your path.  You also want
+to keep "classes.zip", "foundry.conf" and the "docs" directory in
+easily accessible places.  A good way to do this is to just unpack the
+foundry in your root directory.  This will create the top-level
+directory \foundry-0.1.13.  You can add the "bin" directory to your
+path by adding the line:
+
+	SET PATH=\foundry-0.1.13\bin;%PATH%
+
+to your autoexec.bat file.  It also helps to set FILES to a reasonable 
+value in your config.sys file.  A value of 20 or so should be
+sufficient.
+
+--------------------------------------------------------------------------
+3. Configuring and Running the Foundry
+--------------------------------------------------------------------------
+
+See the QuickStart document (in the docs/manuals directory) for
+comprehensive instructions on configuring the foundry and running a
+few simple actor programs.  The foundry manual (foundry.ps or
+foundry.info) is also a good source of information but has not been
+completed at the time of this release.
+
+The manuals have been targeted for the UNIX-based distributions.
+Thus, when reading the manuals you should keep the following in mind:
+
+- \tmp required: In order to run the Win32 versions correctly, you
+    MUST have a directory named "\tmp".  This directory is used by the 
+    start-up scripts for temporary file storage.
+
+- fshell not supported: Fshell is a Tcl/Tk based shell for interacting 
+    with the foundry.  Currently, this shell is not supported in the
+    win32 release.  However, ashell IS supported and has most of the
+    same features.  You should substitute "ashell" for "fshell" when
+    reading the manuals.
+
+- foundry.conf syntax: Remember that the paths in your foundry.conf
+    file should use Win32 file syntax rather than UNIX syntax.
+    I.e. use "\" in place of "/" when specifying file paths.  Also,
+    configure file substitutions use DOS syntax rather than UNIX
+    syntax.  So expressions of the form %VAR% (i.e. NOT $VAR) will be
+    substituted with the corresponding value of the DOS environment
+    variable VAR.
+
+- dial-in connections: A network connection is always created each
+    time a foundry node is started, even if the node will only be used
+    on a disconnected host.  The UNIX ports of Java don't seem to have
+    any problem with this.  That is, you can start up a foundry node
+    on an isolated workstation using "localhost" as the name of the
+    local foundry node.  However, the Win32 ports of Java will
+    probably ask you to establish a connection (e.g. a dial-in
+    connection).  This is annoying.  Especially if you KNOW that you
+    will only be using the node locally.  Rumor has it that you can
+    fake this with a special version of the Winsock DLL (I don't
+    remember where I heard this.  If you know, please let me know).
+    If you don't have that kind of setup, however, you'll have to go
+    ahead and open the connection in order to get things to work.
+
+--------------------------------------------------------------------------
+4. Manifest
+--------------------------------------------------------------------------
+
+For the pre-compiled binary distribution:
+
+  README            Information on how to compile and run the
+                    UNIX-based distribution.
+
+  README.Cygnus32   Information on how to compile and run under
+                    Cygwin32.
+
+  README.Win32      You're looking at it.
+
+  LICENSE           A description of the license restrictions
+                    governing the foundry.
+
+  foundry.conf      A sample configuration file for the foundry.
+
+  classes.zip       The .class files necessary to run the foundry.
+
+  src.zip           The complete Java source of the foundry.
+
+  bin/              Auxiliary shell scripts which are necessary to
+                    start the foundry.
+
+  docs/             Manuals and API (i.e. javadoc generated)
+                    documentation for the foundry.
+
+--------------------------------------------------------------------------
+5. Where to go for Help/Bug Reports
+--------------------------------------------------------------------------
+
+If you need help, want to report a bug, or have suggestions on how the
+foundry may be improved, check out the foundry web page is at:
+
+	http://osl.cs.uiuc.edu/foundry
+
+It contains news on the latest release, pointers to applications
+written in the foundry, and a bug report database.
+
+You can also e-mail the current maintainers of the foundry:
+
+	Mark Astley    <astley@cs.uiuc.edu>
+	Thomas Clausen <voop@cs.auc.dk>
+	James Waldby   <j-waldby@uiuc.edu>

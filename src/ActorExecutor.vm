@@ -1,0 +1,154 @@
+package ${actorInfo.packageName};
+
+import kilim.pausable;
+import osl.util.LSCQueue; 
+import osl.manager.ActorMsgRequest;
+import osl.manager.ActorExecutor;
+
+public class ${actorInfo.name}Executor extends ${actorInfo.superClassName}Executor{
+	private ${actorInfo.name} actor;  
+	
+	public ${actorInfo.name}Executor(${actorInfo.name} a, LSCQueue<Object> q) {
+		super(a, q);
+		this.actor = a;
+#if (${actorInfo.hasDisableConstraints})
+		this.mailQueue.initDisabledQ();
+#end		
+	}
+	
+	@pausable
+	public Object execute(ActorMsgRequest msgRequest) throws Exception {
+		String msgName = msgRequest.method;
+		Object[] args = msgRequest.methodArgs;
+		boolean typeOK = false;
+#foreach( $method in ${actorInfo.methodList} )
+		if (msgName.equals("${method.name}")) {
+## check types
+			if (args.length == ${method.argList.size()} &&
+#set ($j = 0)
+#foreach ($arg in ${method.argList} )
+			(args[$j] instanceof $arg || args[$j] == null) &&
+	#set ($j = $j + 1)
+#end
+			true) {
+				typeOK = true;
+			}
+			if (typeOK) {
+#if (${method.returnType} != "void")
+				Object retVal = 
+#end
+
+#if (${method.hasDisableConstraint})
+			if ((true  
+#foreach( $disConst in ${method.disableConstraints} )
+			 && actor.$disConst.name(
+#set ($i = 0)
+#foreach( $arg in ${disConst.argList} )
+	(${arg})args[$i]
+	#if ($i < ${disConst.argList.size()} - 1)
+		,
+	#end
+	#set ($i = $i + 1)
+#end
+			)
+#end
+			) == false) {
+#end
+
+				actor.${method.name}(
+#set ($i = 0)
+#foreach( $arg in ${method.argList} )
+	(${arg})args[$i]
+	#if ($i < ${method.argList.size()} - 1)
+		,
+	#end
+	#set ($i = $i + 1)
+#end
+				);
+
+#if (${actorInfo.hasDisableConstraints})
+				mailQueue.flushDisables();
+#end
+			#if (${method.returnType} != "void")
+				return retVal; 
+			#else
+				return Boolean.TRUE; 
+			#end
+
+
+#if (${method.hasDisableConstraint})
+				}
+				else {
+					mailQueue.enqueueDisable(msgRequest);
+					return ActorExecutor.DISABLED_FLAG;
+				}
+#end
+			}
+		}
+#end 
+
+
+//////////// inherited methods
+
+#foreach( $method in ${actorInfo.inheritedMethodList} )
+		if (msgName.equals("${method.name}")) {
+## check types
+			if (
+#set ($j = 0)
+#foreach ($arg in ${method.argList} )
+			(args[$j] instanceof $arg || args[$j] == null) &&
+	#set ($j = $j + 1)
+#end
+			true) {
+				typeOK = true;
+			}
+			if (typeOK) {
+#if (${method.hasDisableConstraint})
+			if ((true  
+#foreach( $disConst in ${method.disableConstraints} )
+			 && actor.$disConst.name(
+#set ($i = 0)
+#foreach( $arg in ${disConst.argList} )
+	(${arg})args[$i]
+	#if ($i < ${disConst.argList.size()} - 1)
+		,
+	#end
+	#set ($i = $i + 1)
+#end
+			)
+#end
+			) == false) {
+#end
+
+					Object messageProcessResult = super.execute(msgRequest);
+					if (messageProcessResult != ActorExecutor.DISABLED_FLAG) {
+						mailQueue.flushDisables();
+					}
+					return messageProcessResult;
+#if (${method.hasDisableConstraint})
+				}
+				else {
+					mailQueue.enqueueDisable(msgRequest);
+					return ActorExecutor.DISABLED_FLAG;
+				}
+#end
+			}
+		}
+#end 
+
+
+
+
+
+
+
+
+
+		return super.execute(msgRequest);
+	}
+
+}
+
+
+
+

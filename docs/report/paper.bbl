@@ -1,0 +1,151 @@
+\begin{thebibliography}{10}
+
+\bibitem{ACTORS}
+Gul Agha.
+\newblock {\em Actors: a model of concurrent computation in distributed
+  systems}.
+\newblock MIT Press, Cambridge, MA, USA, 1986.
+
+\bibitem{erlang-book}
+Joe Armstrong.
+\newblock {\em Programming Erlang: Software for a Concurrent World}.
+\newblock Pragmatic Bookshelf, 2007.
+
+\bibitem{varela2001pdr}
+C.~Varela and G.~Agha.
+\newblock {Programming dynamically reconfigurable open systems with SALSA}.
+\newblock {\em ACM SIGPLAN Notices}, 36(12):20--34, 2001.
+
+\bibitem{ptolemy-actors}
+Edward~A. Lee.
+\newblock Overview of the ptolemy project.
+\newblock Technical Report UCB/ERL M03/25, University of California, Berkeley,
+  2003.
+
+\bibitem{elang}
+The e language.
+\newblock {\em http://www.erights.org/elang}, 2000.
+
+\bibitem{parley}
+Jacob Lee.
+\newblock Parley.
+\newblock {\em http://osl.cs.uiuc.edu/parley/}, 2007.
+
+\bibitem{stage}
+Jonathan Sillito.
+\newblock Stage: exploring erlang style concurrency in ruby.
+\newblock In {\em IWMSE '08: Proceedings of the 1st international workshop on
+  Multicore software engineering}, pages 33--40, New York, NY, USA, 2008. ACM.
+
+\bibitem{srinivasan2008kit}
+S.~Srinivasan and A.~Mycroft.
+\newblock {Kilim: Isolation typed actors for Java}.
+\newblock In {\em Procedings if the European Conference on Object Oriented
+  Programming (ECOOP)}, 2008.
+
+\bibitem{OAF}
+Mark Astley.
+\newblock {\em The Actor Foundry: A Java-based Actor Programming Environment}.
+\newblock Open Systems Laboratory, University of Illinois at Urbana-Champaign,
+  1998-99.
+
+\bibitem{AA_Man}
+Myeong-Wuk Jang.
+\newblock {\em The Actor Architecture Manual}.
+\newblock Department of Computer Science, University of Illinois at
+  Urbana-Champaign, March 2004.
+
+\bibitem{Zwicky}
+William Zwicky.
+\newblock Aj: A systems for buildings actors with java.
+\newblock Master's thesis, University of Illinois at Urbana-Champaign, 2008.
+
+\bibitem{haller2007aut}
+P.~Haller and M.~Odersky.
+\newblock {Actors That Unify Threads and Events}.
+\newblock {\em LECTURE NOTES IN COMPUTER SCIENCE}, 4467:171, 2007.
+
+\bibitem{mit-fos}
+David Wentzlaff and Anant Agarwal.
+\newblock The case for a factored operating system (fos).
+\newblock Technical Report MIT-CSAIL-TR-2008-060, Massachusetts Institute of
+  Technology Computer Science and Artificial Intelligence Laboratory, Oct 2008.
+
+\bibitem{singularity}
+Manuel F\"{a}hndrich, Mark Aiken, Chris Hawblitzel, Orion Hodson, Galen Hunt,
+  James~R. Larus, and Steven Levi.
+\newblock Language support for fast and reliable message-based communication in
+  singularity os.
+\newblock {\em SIGOPS Oper. Syst. Rev.}, 40(4):177--190, 2006.
+
+\bibitem{servo}
+Nicolas Zea, John Sartori, and Rakesh Kumar.
+\newblock Servo: a programming model for many-core computing.
+\newblock {\em SIGARCH Comput. Archit. News}, 36(2):28--37, 2008.
+
+\bibitem{jpdc94}
+Rajendra Panwar and Gul Agha.
+\newblock A methodology for programming scalable architectures.
+\newblock In {\em Journal of Parallel and Distributed Computing, vol. 22 pp
+  479-487}, 1994.
+
+\bibitem{iwmm92}
+Nalini Venkatasubramanian, Gul Agha, and Carolyn Talcott.
+\newblock Scalable distributed garbage collection for systems of active
+  objects.
+\newblock In {\em in Y. Bekkers and J. Cohen (editors), International Workshop
+  on Memory Management, ACM SIGPLAN and INRIA, St. Malo, France, Lecture Notes
+  in Computer Science, vol. 637, pp 134-148, Springer-Verlag, September}, 1992.
+
+\bibitem{weakrefs}
+Ole Agesen and Alex Garthwaite.
+\newblock Efficient object sampling via weak references.
+\newblock In {\em ISMM '00: Proceedings of the 2nd international symposium on
+  Memory management}, pages 121--126, New York, NY, USA, 2000. ACM.
+
+\bibitem{agha1997fac}
+Gul Agha, Ian~A. Mason, Scott Smith, and Carolyn Talcott.
+\newblock {A Foundation for Actor Computation}.
+\newblock {\em Journal of Functional Programming}, 7(01):1--72, 1997.
+
+\bibitem{mobility}
+Alfonso Fuggetta, Gian~Pietro Picco, and Giovanni Vigna.
+\newblock Understanding code mobility.
+\newblock {\em IEEE Transactions on Software Engineering}, 24(5):342--361,
+  1998.
+
+\bibitem{walsh2000spm}
+T.~Walsh, P.~Nixon, and S.~Dobson.
+\newblock {As strong as possible mobility: An Architecture for stateful object
+  migration on the Internet}.
+\newblock {\em 6th ECOOP Workshop on Mobile Object Systems: Operating System
+  Support, Security and Programming Languages, Sophia Antipolis (France)},
+  2000.
+
+\bibitem{sc95}
+WooYoung Kim and Gul Agha.
+\newblock Efficient support of location transparency in concurrent
+  object-oriented programming languages.
+\newblock In {\em Supercomputing '95: Proceedings of the 1995 ACM/IEEE
+  conference on Supercomputing (CDROM)}, page~39, New York, NY, USA, 1995. ACM.
+
+\bibitem{multijava}
+Curtis Clifton, Gary~T. Leavens, Craig Chambers, and Todd Millstein.
+\newblock Multijava: modular open classes and symmetric multiple dispatch for
+  java.
+\newblock In {\em OOPSLA '00: Proceedings of the 15th ACM SIGPLAN conference on
+  Object-oriented programming, systems, languages, and applications}, pages
+  130--145, New York, NY, USA, 2000. ACM.
+
+\bibitem{lang-shootout}
+Open Source.
+\newblock The computer language benchmarks game.
+\newblock {\em http://shootout.alioth.debian.org/}, 2004-2008.
+
+\bibitem{wkim-phd}
+WooYoung Kim.
+\newblock {\em ThAL: An Actor System for Efficient and Scalable Concurrent
+  Computing}.
+\newblock PhD thesis, University of Illinois at Urbana-Champaign, 1997.
+
+\end{thebibliography}

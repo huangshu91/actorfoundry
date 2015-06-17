@@ -1,0 +1,92 @@
+Author: Rajesh K Karmani and Vilas Shekhar
+Date: 08/31/08
+
+
+Fairness: 
+	Message will eventually be received by the target actor. Not guaranteed to be in a particular 
+	order even for a given pair of actors.
+Message copy: Serializable for remote/Cloning for local
+Scheduler: User level
+Actor mapping: java.lang.Thread
+Memory management: programmer managed (destroy method)
+Expressiveness: No Local and global transformations
+Performance: Can't be. 
+Distributed: Yes!
+Others: fault-tolerance, debugging (PRAGMA), security...
+
+Inner yields? Of course. Blocking calls that suspend the thread.
+All the method are run-to-completion
+IO calls are async messages. Yay!!
+
+Windows XP SP3, Jdk1.6
+startfoundry -nowin -config foundry.conf
+ashell -config foundry.conf
+
+> create edu.uiuc.cs.osl.benchmarks.Threadring 0
+SV_0 SV_END
+> send SV_0 boot 100
+
+1) Actor.create->Actor.createImpl->BasicActorImpl.implCreate->ActorImpl.mgrActorCreate->
+	BasicActorManager.actorCreate
+2) ShellActorImpl.implCreate->ActorImpl.mgrActorCreate->BasicActorManager.actorCreate
+
+Rajesh K Karmani and Amin Shali
+
+Future Research directions:
+
+1- Projection and Views for actors [Nov 13, Amin's notes]
+2- Design pattern for asynchronous physical (continuous) world programming with actors by preventing IoC
+3- Mechanisms for pausing actors	{
+We need a mechanism to pause what actor is doing and resume the computation of 
+that actor some time later without violating the semantic. One way is an interrupt-like
+mechanism in which we pause an actor using a message let's say pause. This message set
+a flag and programmer has to check this flag and make a explicit pause wherever he wants
+to pause. Programmer is free not to check this flag and just ignore it. After pause, 
+upon receiving a resume message, framework would resume the actor and reset the flag. 
+
+We need to study other mechanism to achieve that using current abstractions such as polling by
+worker threads. Others are compiler inserted pause checks and inside the library, but they
+should be restricted not to cause semantic interference, specially if we provide a rich pause 
+computation. 
+
+Currently we have the download manager examples which assigns n worker threads for downloading 
+chunks of a file. The manager may need to pause the download on user request. Also we need some 
+more examples for motivation. 
+}
+4- Garbage Collection
+5- Type systems for efficient message-passing	{
+Linear types with ownership transfer along with copy-on-write messages for rest?
+Infer dependencies to enable safe zero-copy messages.
+}
+6- Paper on ActoryFoundry language	{
+Performance and Semantics-related Benchmark programs for actor/concurrency library implementations.
+Documentation and description of the implementation.
+}
+7- An interesting, representative client-side application to understand coordination and protocols	{ 
+May be a browser.
+Expressive coordination patterns such as join, become, soft real-time, transactions.
+Concurrent call/return with reduction customer actors (language-level Fork-Reduce). Customer needs to provide commutative, associative operation for max parallelism.
+}
+8- Language extensions infrastructure {
+Source-to-source or source-to-bytecode compiler to enable language extensions like protocols, coordination
+methods, type-checking, support ad-hoc actor definitions etc.
+}
+9- Performance-related benchmarks from parallel or scientific computing	{
+Barnes-Hut n-body methods.
+Efficient graph matching, highly parallel, Saurabh's AIS.
+
+
+ActorFoundry has potential to out-perform other approaches in scalable performance specially when algorithms 
+have fine-grained sync requirements such as SOR, Delaunay etc, or lot of contention such as Delaunay or irregular parallelism (dependent on 
+data input) such as Barnes-Hut, Delaunay. Just need to keep the cost of creation, context-switching and messaging very low.
+
+Over-decomposition in Galaios means over-decomposition for data but threads remain at the same grain. A natural way is to 
+over-decompose data as well as control, and coordinate through message-passing instead of waiting for/holding locks.
+Reactive-programming (threads too are implemented using interrupts when using locks) with no IoC.
+}
+
+10- Optimizing the run-time	{
+Look at TODO list.
+}
+
+11- Integrating existing locks-based concurrent code seamlessly into AF. 

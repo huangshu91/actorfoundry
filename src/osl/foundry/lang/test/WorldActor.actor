@@ -1,0 +1,30 @@
+/**
+ * Developed by: The Open Systems Lab
+ *             University of Illinois at Urbana-Champaign
+ *             Department of Computer Science
+ *             Urbana, IL 61801
+ *             http://osl.cs.uiuc.edu
+ *
+ * Contact: http://osl.cs.uiuc.edu/af
+ *
+ * Copyright (c) 1998-2009
+ * The University of Illinois Board of Trustees.
+ *    All Rights Reserved.
+ * 
+ * Distributed under license: http://osl.cs.uiuc.edu/af/LICENSE
+ * 
+ */
+package osl.foundry.lang.test;
+
+actor WorldActor {
+
+	// Default constructor is ok
+
+	/**
+	 * This method is usually called by a <em>HelloActor</em> to print out the
+	 * "world" message.
+	 */
+	message void world() {
+		stdout<-println("World!");
+	}
+}

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="ActorFoundry-client" default="all" basedir=".">
+	<property name="src.dir" value="src" />
+	<property name="lib.dir" value="lib" />
+	<property name="bin.dir" value="classes" />
+	<property name="ver" value="1.0" />
+
+	<target name="all" depends="clean,compile,check_local_constraints,codegen,weave" />
+
+	<path id="classpaths">
+		<pathelement path="${bin.dir}" />
+		<pathelement path="${lib.dir}" />
+		<pathelement location="${lib.dir}/tools.jar" />
+		<pathelement location="${lib.dir}/asm-all-2.2.3.jar" />
+		<pathelement location="${lib.dir}/velocity-1.4.jar" />
+		<pathelement location="${lib.dir}/commons-logging-1.1.1.jar" />
+		<pathelement location="${lib.dir}/commons-collections3-3.2.1.jar" />
+		<pathelement location="${lib.dir}/commons-httpclient-3.1.jar" />
+		<pathelement location="${lib.dir}/commons-codec-1.3.jar" />
+		<pathelement location="${lib.dir}/log4j-1.2.15.jar" />
+		<pathelement location="${lib.dir}/foundry-${ver}.jar" />
+		<pathelement location="${lib.dir}/antlr-3.1.1.jar" />
+		<pathelement location="${lib.dir}/commons-cli-1.1.jar" />
+		<pathelement location="${lib.dir}/ant.jar" />
+	</path>
+
+	<target name="clean">
+		<echo message="deleting files" />
+		<delete>
+			<fileset defaultexcludes="no" dir="." includes="*~,#*,foo,bar,x,y" />
+		</delete>
+		<delete dir="./classes" />
+		<mkdir dir="./classes" />
+	</target>
+
+	<target name="codegen">
+		<javadoc private="true" doclet="osl.foundry.preprocessor.ExecutorCodeGen" docletpathref="classpaths" classpathref="classpaths" sourcepath="${src.dir}" packagenames="*">
+
+			<arg line="-outdir ${bin.dir}" />
+		</javadoc>
+		<javac srcdir="${bin.dir}" destdir="${bin.dir}" debug="on" fork="on">
+			<classpath refid="classpaths" />
+		</javac>
+	</target>
+
+	<target name="check_local_constraints">
+		<apt srcdir="${src.dir}" compile="false" classpathref="classpaths" debug="true" factory="osl.foundry.preprocessor.LocalSynchConstAPF" factorypathref="classpaths">
+		</apt>
+	</target>
+
+	<target name="compile">
+		<mkdir dir="${bin.dir}" />
+		<javac srcdir="${src.dir}" destdir="${bin.dir}" debug="on" fork="on">
+			<classpath refid="classpaths" />
+		</javac>
+	</target>
+	<taskdef classname="osl.foundry.lang.util.AFCTask" classpathref="classpaths" name="afc" />
+
+	<target name="afc">
+		<echo message="============= ActorFoundry Compiler =============" />
+		<afc outputdir="${bin.dir}">
+			<fileset dir="${src.dir}" casesensitive="yes">
+				<include name="**/*.actor" />
+			</fileset>
+		</afc>
+	</target>
+
+
+	<target name="weave">
+		<echo message="Weaving files ===================" />
+		<java classname="kilim.tools.Weaver" fork="yes">
+			<classpath refid="classpaths" />
+			<assertions>
+				<enable />
+			</assertions>
+			<arg value="-x" />
+			<!-- Skip classes that match ExInvalid. These are negative tests 
+            for the weaver. -->
+			<arg value="ExInvalid" />
+			<arg value="-d" />
+			<arg value="${bin.dir}" />
+			<arg line="${bin.dir}" />
+		</java>
+
+	</target>
+
+</project>

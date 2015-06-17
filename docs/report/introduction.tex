@@ -1,0 +1,58 @@
+\section{Introduction}
+In the Actor model of programming \cite{ACTORS}, systems comprise of concurrent, autonomous entities called actors which do not share state.  Hence, actors are inherently free from low-level data races. Moreover, access to local state only increases the locality of reference.
+
+The synchronization primitive in the Actor model is asynchronous message-passing.  While waiting for a lock, threads occupy system resources such as a native stack and possibly other locks. In contrast, actors waiting for a message
+do not hold any system resources. Hence asynchronous message-passing is less error-prone than locks.
+Moreover, the Actor model is an inherently concurrent model of programming.  Hence it is widely considered to be a promising approach towards programming scalable multi-core architectures.
+
+Some languages based on the Actor model that are currently being used
+include Erlang \cite{erlang-book}, SALSA
+\cite{varela2001pdr}, Ptolemy \cite{ptolemy-actors}, E language \cite{elang}.
+Additionally there are various Actor libraries written on top of existing languages like Python (Parley \cite{parley},
+Stackless python), Ruby (RevActor, Dramatis, Stage \cite{stage}), C++ (Theron), Java (Kilim \cite{srinivasan2008kit},
+ActorFoundry \cite{OAF}, Actor Architecture \cite{AA_Man}, JavAct \cite{Zwicky}, Jetlang, Jsasb, Actors Guild), Scala \cite{haller2007aut}, and .NET (Microsoft's Asynchronous Agents, Retlang).
+
+While the above-mentioned languages and libraries support concurrent entities and asynchronous message-passing, many of them overlook some key semantic properties of the Actor model of programming. These properties include encapsulation, distributed execution and strong mobility. Encapsulation is important for reasoning about safety properties. It also enables modular analyis and higher software maintainability. Modular reasoning allows composition of software components which in turn enables building large-scale open systems. Distributed execution and strong mobility facilitates load-balancing and fault-tolerance. Also, support for distribution allows a uniform programming model for multicores as well as the Internet. We would present arguments that support for distributed execution is important for programming scalable multicore architectures.
+
+There is a debate going on whether the right model to program multicore architectures is a shared memory model or through message-passing. Due to the desirable properties of data race freedom and aynschrony, we believe that the right model is Actor model and hence, we belong to the message-passing camp. More than that, we believe that even the design and implementation of tools and run-time for multicores should also assume a distributed memory model. As the number of cores on a chip grow and we move towards \emph{manycore} architectures, the logic and circuitry required for cache-coherence does not scale. For the software, assumption of a shared data structure by the parallel tasks can create bottlenecks (due to locks and other forms of synchronization) which may prevent exploiting the parallelism of an application. Conceptually, even the hardware cache is a shared data structure, only that it is managed by the hardware \cite{mit-fos}. 
+
+Such observations and other related problems have prompted the design of services based run-time and operating systems \cite{mit-fos,singularity,servo}, where the services communicated by message-passing. We would term these services as coarse-grained actors. Therefore, we believe that support for distributed execution is important for achieving scalable performance on manycore, heterogeneous architectures, specially for dynamic, irregular apps \cite{jpdc94}. We believe that distributed execution and mobility enable a separation of concerns: ``what'' from ``where''.
+
+%All the examples here with details about semantics
+
+A survey of existing JVM-based Actor frameworks including Scala and Kilim shows the lack of these properties though. We describe a na\"ive implementation of encapsulation, distributed execution and strong mobility in the context of ActorFoundry, an Actor library for Java. We present a detailed analysis of the various costs. We identify the key sources of inefficiency in implementing these properties: mapping of actors to Java threads and location-independent naming. The first problem is addressed effectively in Kilim \cite{srinivasan2008kit} through a Continuations Passing Style (CPS) transform on Java bytecode. The transform exploits properties of actors such as lack of shared state and message-driven scheduling, and hence allows light-weight actors that can be efficiently migrated.
+
+In this paper, we focus on supporting location-independent naming in Actor systems. We discuss why efficiently providing location-independent naming can be a challenge. The major considerations are space requirement and how naming affects garbage collection in Actor systems. The map of Actor name to its state (including its execution stack and the mailbox) can grow unbounded in the absence of an Actor garbage collector. As previous literature suggests \cite{iwmm92}, Actor garbage collection in distributed settings is an expensive task. Hence this presents an additional barrier towards providing support for distribution and strong mobility in Actor systems. Maps with weak references \cite{weakrefs} allow such mapping with the facility that if the Actor name is not reachable outside the map, the JVM garbage collector can remove the entry from the map. Hence, JVM GC effectively doubles as the local Actor GC. But in the presence of distribution and mobility, the names can be shared with remote JVMs and \code{equals()} method for Actor name object does not check for reference equality. Hence weak maps can not be employed. %Moreover, a global lookup table is a potential source of bottleneck for different threads running on a shared-memory multicore node.
+
+In order to mitigate these inefficiencies, we refer to the concepts of 'receptionists' and 'external actors' as described in \cite{agha1997fac}. We argue that only the receptionists actors need to be added to the tables. Hence the task of maintaining the tables faithfully follows the semantics of Actor operations that update the set of receptionists. We observe that while the semantics for message sends correctly update the set of receptionists and external actors, the semantics for creating and initializing new actors do not consider remote hosts. We provide the correct semantics for actor creation and initialization, as well as semantics for migration in distributed Actor systems.
+
+\begin{comment}
+
+\begin{align*}
+%Inspiration from Actor configurations
+&< \mbox{remote\_create : a, a'} > \\
+&\quad \cnfg{\alpha, [R[\mbox{create(node)}]]_{a}}{\mu}{\rho}{\chi} \mapsto \cnfg{\alpha, [R[nil]]_{a}}{\mu}{\rho}{\chi \cup \{a'\}}\\
+\\
+&< \mbox{remote\_init : a, a'} > \\
+&\quad \cnfg{\alpha, [R[\mbox{initbeh(a', v)}]]_{a}}{\mu}{\rho}{\chi} \mapsto \cnfg{\alpha, [R[nil]]_{a}}{\mu}{\rho \cup (FV(v) \cap Dom (\alpha))}{\chi}\\
+\\
+&< \mbox{remote\_create\_request : a, a'} > \\
+&\quad \cnfg{\alpha}{\mu}{\rho}{\chi} \mapsto \cnfg{\alpha, (?_a)_{a'}}{\mu}{\rho \cup \{a'\}}{\chi}\\
+\\
+&< \mbox{remote\_init\_request : a, a'} > \\
+&\quad \cnfg{\alpha, (?_a)_{a'}}{\mu}{\rho}{\chi} \mapsto \cnfg{\alpha, (v)_{a'}}{\mu}{\rho}{\chi \cup (FV(v) - Dom (\alpha))}\\
+\\
+&< \mbox{migrate\_out : a, node} > \\
+&\quad \cnfg{\alpha, [R[\mbox{migrate(node)}]]_{a}}{\mu}{\rho}{\chi} \mapsto \cnfg{\alpha}{\mu}{(\rho \cup (FV(a) \cap Dom (\alpha))) - \{a\}}{\chi}\\
+\\
+&< \mbox{migrate\_in : a} > \\
+&\quad \cnfg{\alpha}{\mu}{\rho}{\chi} \mapsto \cnfg{\alpha, [R[nil]]_{a}}{\mu}{\rho \cup \{a\}}{\chi \cup (FV(a) - Dom (\alpha))}
+\end{align*}
+\end{comment}
+
+Using these semantics, we describe and implement techniques that dramatically reduce the space-related inefficiencies. We briefly describe a proof of its correctness. We also describe how the JVM GC doubles as a local Actor garbage collector without weak maps using our approach. We also argue that generic clustering frameworks like Terracotta can not be more efficient since they do not exploit Actor semantics of encapsulation and locality. Evaluation of costs in the context of a JVM-based Actor library suggests that overhead of these semantics is negligible even in the case of a library implementation. 
+
+
+% Separate concerns: advantages of distributed execution, mobility, load-balancing scheduler,
+In the next three sections, we discuss the significance of each of encapsulation, distributed execution and strong mobility in Actor systems and what each of them requires from an Actor naming architecture. Next, we present the results from evaluation of a na\"ive implementation of these requirements. We identify the key reasons of inefficiency and propose optimizations that satisfy the requirements imposed by the properties. Next, we presents our results from evaluating our approach for a number of parallel and concurrent benchmarks. In the end, we conclude with related work in other Actor implementations and discuss future directions for research.
+ 

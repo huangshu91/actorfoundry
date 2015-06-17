@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="ActorFoundry-dist" default="all" basedir=".">
+	<property name="src.dir" value="src" />
+	<property name="lib.dir" value="lib" />
+	<property name="bin.dir" value="classes" />
+	<property name="ver" value="1.0" />
+
+	<target name="all" depends="compile,codegen,weave" />
+
+	<target name="clean-all" depends="clean,all" />
+
+	<path id="classpaths">
+		<pathelement path="${bin.dir}" />
+		<pathelement path="${lib.dir}" />
+		<pathelement location="${lib.dir}/tools.jar" />
+		<pathelement location="${lib.dir}/asm-all-2.2.3.jar" />
+		<pathelement location="${lib.dir}/velocity-1.4.jar" />
+		<pathelement location="${lib.dir}/commons-logging-1.1.1.jar" />
+		<pathelement location="${lib.dir}/commons-collections3-3.2.1.jar" />
+		<pathelement location="${lib.dir}/commons-httpclient-3.1.jar" />
+		<pathelement location="${lib.dir}/commons-codec-1.3.jar" />
+		<pathelement location="${lib.dir}/log4j-1.2.15.jar" />
+		<pathelement location="${lib.dir}/antlr-3.1.1.jar" />
+		<pathelement location="${lib.dir}/commons-cli-1.1.jar" />
+		<pathelement location="${lib.dir}/ant.jar" />
+		<pathelement location="${lib.dir}/afc.jar" />
+		<pathelement location="${lib.dir}/hadoop-0.20.2-core.jar" />
+	</path>
+
+	<target name="clean">
+		<echo message="deleting files" />
+		<delete>
+			<fileset defaultexcludes="no" dir="." includes="*~,#*,foo,bar,x,y" />
+		</delete>
+		<delete dir="./classes" />
+		<mkdir dir="./classes" />
+	</target>
+
+	<target name="codegen">
+		<javadoc private="true" doclet="osl.foundry.preprocessor.ExecutorCodeGen" docletpathref="classpaths" classpathref="classpaths" sourcepath="${src.dir}" packagenames="*">
+			<arg line="-outdir ${bin.dir}" />
+		</javadoc>
+		<antcall target="codegen-compile" />
+	</target>
+
+	<target name="codegen-compile">
+		<javac srcdir="${bin.dir}" destdir="${bin.dir}" debug="on" fork="on">
+			<classpath refid="classpaths" />
+		</javac>
+	</target>
+
+<!--	<target name="check_local_constraints">
+		<apt srcdir="${src.dir}" compile="false" classpathref="classpaths" debug="true" factory="osl.foundry.preprocessor.LocalSynchConstAPF" factorypathref="classpaths">
+			<exclude name="**/osl/foundry/lang/**" />
+		</apt>
+	</target> -->
+
+	<target name="compile">
+		<mkdir dir="${bin.dir}" />
+		<copy file="${src.dir}/ActorExecutor.vm" todir="${bin.dir}" />
+		<javac srcdir="${src.dir}" destdir="${bin.dir}" debug="on" fork="on" includeantruntime="false">
+			<classpath refid="classpaths" />
+		</javac>
+	</target>
+
+	<taskdef classname="osl.foundry.lang.util.AFCTask" classpathref="classpaths" name="afc" />
+
+	<target name="afc">
+		<echo message="============= ActorFoundry Compiler =============" />
+		<afc outputdir="${bin.dir}">
+			<fileset dir="${src.dir}" casesensitive="yes">
+				<include name="**/*.actor" />
+			</fileset>
+		</afc>
+	</target>
+
+	<target name="make-afc-parser-lexer">
+		<java classname="org.antlr.Tool" fork="yes">
+			<classpath refid="classpaths" />
+			<arg value="src/osl/foundry/lang/ActorFoundry.g"/>
+		</java>
+	</target>
+
+	<target name="weave">
+		<echo message="Weaving files ===================" />
+		<java classname="kilim.tools.Weaver" fork="yes">
+			<classpath refid="classpaths" />
+			<assertions>
+				<enable />
+			</assertions>
+			<arg value="-x" />
+			<!--
+				Skip classes that match ExInvalid. These are negative tests for the
+				weaver
+			-->
+			<arg value="ExInvalid" />
+			<arg value="-d" />
+			<arg value="${bin.dir}" />
+			<arg line="${bin.dir}" />
+		</java>
+
+	</target>
+
+	<target name="make-jar" depends="all">
+		<jar basedir="${bin.dir}" index="true" jarfile="${lib.dir}/foundry-${ver}.jar">
+			<include name="**/*.*" />
+			<exclude name="**/osl/examples/**" />
+			<exclude name="**/osl/tests/**" />
+			<manifest>
+				<attribute name="Main-Class" value="osl.foundry.FoundryStart" />
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="bin-dist" depends="make-jar">
+		<tar destfile="./foundry-local-${ver}.tar">
+			<tarfileset dir="${src.dir}/osl/examples" prefix="/src/osl/examples" />
+			<tarfileset dir="${lib.dir}" prefix="/lib" />
+			<tarfileset dir=".">
+				<include name="LICENSE" />
+				<include name="foundry.conf" />
+				<include name="velocity.properties" />
+			</tarfileset>
+			<tarfileset dir="." fullpath="build.xml">
+				<include name="build-bin-dist.xml" />
+			</tarfileset>
+			<tarfileset dir="." fullpath="README">
+				<include name="README.txt" />
+			</tarfileset>
+			<tarfileset dir="." fullpath="LICENSE-Kilim">
+				<include name="License-Kilim" />
+			</tarfileset>
+			<tarfileset dir="." fullpath="${src.dir}/osl/examples/gui/list_sort_color/english.0">
+				<include name="english.0" />
+			</tarfileset>
+
+		</tar>
+		<gzip destfile="./foundry-local-${ver}.tar.gz" src="./foundry-local-${ver}.tar" />
+		<delete file="./foundry-local-${ver}.tar" />
+	</target>
+
+	<target name="src-dist">
+		<tar destfile="./foundry-local-src-${ver}.tar">
+			<tarfileset dir="${src.dir}" prefix="/src" />
+			<tarfileset dir="${lib.dir}" prefix="/lib" />
+			<tarfileset dir=".">
+				<include name="LICENSE" />
+				<include name="build.xml" />
+				<include name="*.conf" />
+				<include name="velocity.properties" />
+			</tarfileset>
+			<tarfileset dir="." fullpath="README">
+				<include name="README.txt" />
+			</tarfileset>
+			<tarfileset dir="." fullpath="LICENSE-Kilim">
+				<include name="License-Kilim" />
+			</tarfileset>
+			<tarfileset dir="." fullpath="${src.dir}/osl/examples/gui/list_sort_color/english.0">
+				<include name="english.0" />
+			</tarfileset>
+
+		</tar>
+		<gzip destfile="./foundry-local-src-${ver}.tar.gz" src="./foundry-local-src-${ver}.tar" />
+		<delete file="./foundry-local-src-${ver}.tar" />
+	</target>
+
+</project>

@@ -1,0 +1,56 @@
+### $Revision: 1.4 $ ($Date: 1999/07/21 23:07:22 $)
+
+Cygwin32 is a UNIX-like environment written for Windows 95/NT.  Most
+of the important GNU tools have been ported to this environment,
+allowing them to be executed under Win32.  As a result, it is possible
+to build the foundry in a Win32 environment.  Note, however, that the
+resulting installation is not equivalent to the Win32 binary
+distribution.  The Win32 binary distribution is designed to be usable
+without the Cygwin32 DLLs.  See the win32 directory in the source for
+details on how this is accomplished.  See http://www.cygnus.com for
+information on obtaining Cygwin32.
+
+IMPORTANT: At the time of this writing, the Cygwin32 tools are still
+pretty unstable.  There is about a 50-50 chance that you'll actually
+succeed in getting everything to compile.  The weakness appears to be
+in the Cygwin32 port of bash.  About half the time, a call to "make"
+will finish successfully.  The other half of the time "make" will lock 
+the system and you'll have to reboot.  
+
+If you plan on serious development, I would suggest you find an
+alternative to Cygwin32.  However, if you want to try it anyway, the
+installation process under Cygwin32 is identical to that for the UNIX
+based distribution except for the following caveats:
+
+- fshell not supported: Fshell is a Tcl/Tk based shell for interacting 
+    with the foundry.  Currently, this shell is not supported under
+    Cygwin32.  However, "ashell" IS supported and has most of the same
+    features.  There is no technical reason why fshell could not be
+    supported, we just haven't got around to doing it.  If anyone
+    wants to contribute a port, I'd greatly appreciate it.
+
+- docs directory not supported: The docs directory in the raw source
+    distribution will NOT be compiled under Cygwin32.  The reason for
+    this is a lack of compatibility between texinfo and emTeX.
+    Either texinfo needs to be changed to work with Win32-style file
+    paths, or a Cygwin32 port of TeX needs to be developed.
+
+- foundry.conf syntax: Although the build environment is UNIX-like,
+    the java executable is still a Win32 application.  This means that 
+    it expects Win32 style file paths in your configuration file.
+    This means you should use "\" in place of "/" when specifying file
+    paths.  HOWEVER, the startfoundry script will be executed within
+    Cygwin so you actually need to replace "/" with "\\" to avoid
+    losing backslashes.  For example, if the foundry .class files are
+    located in the directory C:\foundry-0.1.13\osl, then you might add the
+    line:
+
+	CLASSPATH C:\\foundry-0.1.13
+
+    to your foundry.conf file.  Note that you can still use UNIX-like
+    paths for command line options.  E.g.
+
+	startfoundry -config /foundry-0.1.13/foundry.conf
+
+
+

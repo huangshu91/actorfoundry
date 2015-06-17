@@ -1,0 +1,8 @@
+#switch to regexp syntax.
+syntax: glob
+classes/*
+bin/*
+classes.zip
+src.zip
+foundry.conf
+lib/tools.jar

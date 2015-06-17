@@ -1,0 +1,36 @@
+4- Optimize the scheduler: Dynamically expanding WorkerThread pool
+		and locality (affinity)
+5- Re-enable Service threads (BEWARE of consequences).
+
+6- Remove warnings and PRAGMA annotations
+# 8- Fix Kilim's handling of null-initialized local variables.
+
+12- Introduce generics types for ActorName. After compiler?
+13- Replace apt tool with javac. Solved after compiler?
+14- Use annotations to declare an actor instead of inheriting from Actor.
+
+17- An example for catching exception thrown when a matching method is not found
+18- Lighter actors: Remove scheduler from Task
+18.5- call-specific PauseReason, reduce # of Empty_MbReason instances 
+19- Taking care of the messages in in, out, err actors before termination.
+20- Get rid of other undesirable conventions: one actor per source file, 
+21- Creating actor inside a constructor throws an exception
+22- Non-package directories in src/ produce this error:
+[javadoc] javadoc: warning - No source files for package main.java.com.mycompa
+ny.myapp.concurrent.actorfoundry
+
+22- Timer service (asynchronous call(), others)
+
+Compiler-related tasks
+C3- Simple syntax for declaring actor, message, and creation of actor.
+C4- Integrate check_local_sync and codegen as part of compiler.
+C5- Type check messages.
+C6- Support for anonymous/ad-hoc actors.
+C7- 'reply' keyword that translates to 'return' (only in messages)
+now with obvious semantics.
+C8- Translate message sends into method calls if the locality and
+availability checks are true. This could really boost the performance
+of Threadring. 
+C9- Simple syntax for join expressions.
+
+

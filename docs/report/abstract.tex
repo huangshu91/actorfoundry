@@ -1,0 +1,29 @@
+\begin{abstract}
+
+
+In order to address the problem of programming multicore
+architectures, at least 15 implementations of the \emph{Actor model}
+have been proposed in the past couple of years.  Most of these
+implementations are in the form of libraries (written in Java, Ruby,
+Python, Scala, Squeak, C++ among others) which provide runtime
+support for actors.  An issue is that these runtime libraries do not
+support \emph{distributed execution} and \emph{strong mobility}.
+While this reduces execution overhead on shared memory multicore
+computers, we argue that these actor properties are necessary for
+programming \emph{scalable} multicore architectures.  Many
+implementations have also compromised on \emph{enforcing} one of the
+key requirements of \emph{actor encapsulation}, namely, that an actor
+cannot directly access methods (or state) of another actor but may
+only send messages to it.  We analyze the costs of supporting
+encapsulation, distributed execution and strong mobility in
+ActorFoundry, a Java library for actors, and show that the major
+overhead is the result of a naive implementation of location independent
+\emph{actor names}.  We then describe techniques to improve the
+efficiency of distributed actor name management.  Results of our
+experiments demonstrate that, using these techniques, actor properties
+can be efficiently supported in libraries. We conclude by discussing
+the implications of name management for garbage collection and
+resource discovery.
+
+\end{abstract}
+

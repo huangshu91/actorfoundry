@@ -1,0 +1,5 @@
+java -cp /Users/rezashiftehfar/My_Software/ActorFoundry_dist_ver/lib/hadoop-0.20.2-core.jar:/Users/rezashiftehfar/My_Software/ActorFoundry_dist_ver/lib/commons-logging-1.1.1.jar:/Users/rezashiftehfar/My_Software/ActorFoundry_dist_ver/lib/commons-cli-1.1.jar:/Users/rezashiftehfar/My_Software/ActorFoundry_dist_ver/lib/foundry-1.0.jar:/Users/rezashiftehfar/My_Software/ActorFoundry_dist_ver/classes:/Users/rezashiftehfar/My_Software/ActorFoundry_dist_ver/src/reza/rCloud/classes osl.foundry.FoundryStart -open -config /Users/rezashiftehfar/My_Software/ActorFoundry_dist_ver/foundry_dist.conf
+#java -cp lib/hadoop-0.20.2-core.jar:lib/commons-logging-1.1.1.jar:lib/commons-cli-1.1.jar:lib/foundry-1.0.jar:classes:/Users/rezashiftehfar/My_Software/ActorFoundry_dist_ver/src/reza/rCloud/classes osl.foundry.FoundryStart -open -config foundry_dist.conf
+
+#java -cp lib/foundry-1.0.jar:classes osl.foundry.FoundryStart -open -config foundry_dist.conf
+

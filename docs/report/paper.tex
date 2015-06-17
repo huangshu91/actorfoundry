@@ -1,0 +1,72 @@
+%\documentstyle{llncs}
+\documentclass{llncs}
+
+\input mac.tex
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{verbatim}
+
+\newcommand{\todo}[1]{\textbf{TODO:} $<<$ #1 $>>$}
+\newcommand{\comments}[1]{}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\af}{ActorFoundry v1.0}
+\newcommand{\oaf}{Actor Foundry v0.1.14}
+
+\title{An Efficient Actor Name Management Architecture to Support
+Encapsulation, Distributed Execution and Strong Mobility}
+\author{Rajesh K Karmani, Amin Shali, Gul Agha}
+\institute{University of Illinois at Urbana-Champaign}
+
+\begin{document}
+\maketitle
+
+\input{abstract}
+
+\input{introduction}
+
+\input{semantics}
+
+\input{implementation}
+
+
+%\section{Cost Evaluation}
+\section{Performance}
+Figure \ref{tr_performance} compares the performance of optimized implementation of ActorFoundry with Scala, Kilim, SALSA and Actor Architecture. Figure \ref{cham_performance} provides a similar comparison for Chameneos-redux benchmark. \todo{Need to compare the size/memory footprint of the run-time, each actor and each message to understand cache-related effects.}
+
+\begin{figure}%[htb]
+%\begin{center}
+\centerline
+{
+%\includegraphics[bb=0 0 500 339,scale=0.70]{images/tr_performance.eps}
+% tr_performance.eps: 0x0 pixel, 300dpi, 0.00x0.00 cm, bb=0 0 500 339
+}
+%\end{center}
+\caption{Threadring Performance}
+\label{tr_performance}
+\end{figure}
+\begin{figure}%[htb]
+%\begin{center}
+\centerline
+{
+%\includegraphics[bb=0 0 500 339,scale=0.70]{images/broker_performance.eps}
+% broker_performance.eps: 0x0 pixel, 300dpi, 0.00x0.00 cm, bb=0 0 500 339
+}
+%\end{center}
+\caption{Chameneos-redux Performance}
+\label{cham_performance}
+\end{figure}
+
+We implement distributed versions of Threadring, Chameneos-redux, Na\"ive fibonacci and Red-Black ordering. We present the results of running these on a cluster of 1 to 4 nodes.
+
+\section{Related Work}
+
+\input{discussion}
+
+\bibliographystyle{unsrt}
+\bibliography{actors}
+
+\end{document}
+
+
+

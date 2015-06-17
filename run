@@ -1,0 +1,1 @@
+java -cp lib/foundry-1.0.jar:classes osl.foundry.FoundryStart -config foundry_huang.conf
