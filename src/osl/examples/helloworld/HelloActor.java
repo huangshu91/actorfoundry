@@ -16,6 +16,9 @@
  */
 package osl.examples.helloworld;
 
+import java.util.List;
+import java.util.ArrayList;
+
 import osl.manager.Actor;
 import osl.manager.ActorName;
 import osl.manager.RemoteCodeException;
@@ -41,6 +44,12 @@ public class HelloActor extends Actor {
 
 	// Default constructor is ok
 
+	private ActorName otherActor = null;
+	
+	public String testing = "fjekajfkejkafjekafj";
+	
+	private List<ActorName> actornameslist = new ArrayList<ActorName>();
+	
 	/**
 	 * 
 	 */
@@ -55,14 +64,26 @@ public class HelloActor extends Actor {
 	 */
 	@message
 	public void hello() throws RemoteCodeException {
-		ActorName other = null;
 		call(stdout, "println", "Hello ");
-		other = create(WorldActor.class);
-		call(stdout, "println", other.toString());
-		call(self(), "hello");
-		send(self(), "hello");
-		send(other, "test", "testobj");
-		send(other, "world");
+		otherActor = create(WorldActor.class);
+		send(otherActor, "world");
+		send(otherActor, "world", this.self());
+		
+		for (int i = 0; i < 2; i++) {
+			ActorName worldactor = create(WorldActor.class);
+			actornameslist.add(worldactor);
+			send(worldactor, "createAcq");
+			
+			//ActorName worldthree = create(WorldThree.class);
+			//actornameslist.add(worldthree);
+			//send(worldthree, "worldthree");
+		}
+		
+	}
+	
+	@message
+	public void test() {
+		send(stdout, "println", "Testing Hello");
 	}
 
 }

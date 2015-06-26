@@ -3,6 +3,7 @@ package osl.manager.basic;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.ArrayList;
 
 import osl.foundry.FoundryStart;
 import osl.handler.RequestException;
@@ -78,17 +79,6 @@ public class BasicActorManager extends ActorManager {
 	public static final long SERVICE_TIMEOUT = 300000;
 
 	/**
-	 * The scheduler for this actor manager. The scheduler is in charge of
-	 * scheduling all the threads associated with an actor manager.
-	 */
-	// protected Scheduler actorScheduler = null;
-	/**
-	 * The request handler implementation to use for creating request sessions
-	 * for this manager. The basic implementation only creates one session for
-	 * interacting with remote entities.
-	 */
-	// protected RequestHandler ourHandler = null;
-	/**
 	 * The session used by this actor manager to interact with remote managers.
 	 */
 	protected RequestSession session = null;
@@ -141,6 +131,20 @@ public class BasicActorManager extends ActorManager {
 	 * automatically added to the queue once it has completed its task.
 	 */
 	protected Queue<ServiceThread> serviceQueue = null;
+	
+	//TODO marker
+    protected Hashtable<ActorName, BasicActorImpl> localActors = null;
+    protected Hashtable<ActorName, BasicActorImpl> externals = null;
+    
+    public boolean currentlyGC = false;
+    protected GCReqThread GCthread = null;
+    
+    public static Object[] zeroArray = new Object[0];
+    
+    protected int numAcks = 0;
+    protected int numRoot = 0;
+    
+    protected ArrayList<ActorManagerName> distNodes = null;
 
 	/**
 	 * The default constructor. Initialize all fields that can be initialized
@@ -149,9 +153,16 @@ public class BasicActorManager extends ActorManager {
 	public BasicActorManager() {
 		// managed_actors = new Hashtable<ActorName, ActorEntry>();
 		receptionists = new Hashtable<ActorName, ActorImpl>(50);
+		//TODO marker
+		localActors = new Hashtable<ActorName, BasicActorImpl>();
+		externals = new Hashtable<ActorName, BasicActorImpl>();
+		distNodes = new ArrayList<ActorManagerName>();
+		
 		localServices = new Hashtable<ServiceName, Service>();
 		requestMap = new Hashtable<RequestID, ActorMsgRequest>();
 		// serviceQueue = new Queue<ServiceThread>();
+		
+		GCthread = new GCReqThread();
 	}
 
 	// ///////////////////////////////////////////////////////////////////
@@ -217,6 +228,7 @@ public class BasicActorManager extends ActorManager {
 
 			// Last, start our cleanup thread running
 			startCleanup();
+			startGC();
 
 		} catch (Exception e) {
 			// Any exception here gets packaged and thrown as a request
@@ -348,6 +360,25 @@ public class BasicActorManager extends ActorManager {
 			// [debug,osl.manager.ActorManager,osl.manager.basic.BasicActorManager]
 			// Log.println("Initializing implementation");
 			implInitialize(newImp, newAct, copyReq);
+			
+			//TODO marker
+			if (!(newImp instanceof ShellActorImpl)
+					&& !(newImp instanceof StreamInputActorImpl)
+					&& !(newImp instanceof StreamOutputActorImpl)
+					&& !(newImp instanceof StreamErrorActorImpl)) {
+				
+				synchronized (localActors) {
+					// should never happen, sanity check.
+					if (request.isRoot){ 
+						((BasicActorImpl)newImp).actorGCSet = BasicActorImpl.GC_SET.ROOT;
+					}
+					localActors.put(newAct, (BasicActorImpl) newImp);
+					System.out.println(request.behToCreate.getName());
+					System.out.println(newAct);
+					//System.out.println(request.implToCreate.getName());
+				}
+			}
+			
 			// newEntry.out(Thread.currentThread());
 			newAct.out(Thread.currentThread());
 
@@ -436,6 +467,8 @@ public class BasicActorManager extends ActorManager {
 	 *                the manager implementation rather than an error
 	 *                encountered at the target of the message.
 	 */
+	
+	//TODO marker
 	protected void actorSend(ActorImpl caller, ActorMsgRequest message)
 			throws RemoteCodeException {
 
@@ -457,8 +490,22 @@ public class BasicActorManager extends ActorManager {
 			// Log.println(FoundryStart.sysLog,
 			// "<BasicActorManager.actorSend> Default name received message: " +
 			// message);
+			
+			System.out.println("default name received message: "+message);
 			return;
 		}
+		
+		//TODO marker
+		if (message.msgtype == ActorMsgRequest.GC_TYPE.FINISH){
+			numAcks++;
+			System.out.println("received a finish GC message");
+			if (numAcks == numRoot) {
+				GCthread.scavengeComplete();
+			}
+			return;
+		}
+		
+		//TODO marker
 
 		// This is simple since most of the work is actually handled by a
 		// service thread. If the send is local then:
@@ -473,35 +520,6 @@ public class BasicActorManager extends ActorManager {
 		// otherwise make the remote call to the home of the actor as
 		// usual.
 		try {
-			// synchronized (managed_actors) {
-			// entry = managed_actors.get(message.receiver);
-
-			// if (entry != null) {
-			/*
-			 * // PRAGMA [debug,osl.manager.ActorManager,osl.manager.basic
-			 * .BasicActorManager]Log.println(
-			 * "<BasicActorManager.actorSend> Actor is local, grabbing task thread"
-			 * ); newTask = getTask(); // PRAGMA [debug,osl.manager.ActorManager
-			 * ,osl.manager.basic.BasicActorManager]
-			 * Log.println("<BasicActorManager.actorSend> HERE 1");
-			 * newTask.toDeliver = (ActorMsgRequest) message.clone(); //
-			 * PRAGMA[debug,osl.manager.ActorManager,osl.manager.basic.
-			 * BasicActorManager]
-			 * Log.println("<BasicActorManager.actorSend> HERE 2");
-			 * newTask.toDeliverTarget = entry; // PRAGMA [debug,osl.manager
-			 * .ActorManager,osl.manager.basic.BasicActorManager]
-			 * Log.println("<BasicActorManager.actorSend> HERE 3");
-			 * entry.in(newTask.us); // PRAGMA [debug,osl.manager.ActorManager
-			 * ,osl.manager.basic.BasicActorManager]Log.println(
-			 * "<BasicActorManager.actorSend> Task prepared to handle delivery"
-			 * );
-			 */
-			// entry.in(Thread.currentThread());
-			// }
-			// }
-			// We test again so that we can exit the synchronized block
-			// (above) as quickly as possible.
-			// if (entry != null) {
 			// If the ActorName.getActor() returns null, the actor is non-local
 			rec = message.receiver.getActor();
 
@@ -516,16 +534,6 @@ public class BasicActorManager extends ActorManager {
 					implDeliver(rec, message);
 				}
 				message.receiver.out(Thread.currentThread());
-
-				/*
-				 * synchronized (newTask) { newTask.notify(); // PRAGMA
-				 * [debug,osl
-				 * .manager.ActorManager,osl.manager.basic.BasicActorManager]
-				 * Log.println(
-				 * "<BasicActorManager.actorSend> Task notified, exiting...");
-				 * 
-				 * }
-				 */
 
 				return;
 			}
@@ -627,7 +635,7 @@ public class BasicActorManager extends ActorManager {
 			// that we don't accidentally leave a reference in the
 			// managed_actors table.
 
-			// TODO: worry about finding aliases later. They are not being used
+			// worry about finding aliases later. They are not being used
 			// anywhere except ShellActorImpl
 			/*
 			 * for (Enumeration<?> N = managed_actors.keys();
@@ -1042,7 +1050,16 @@ public class BasicActorManager extends ActorManager {
 			ActorImpl newImp = null;
 			// ActorEntry newEntry = null;
 
+			//TODO marker
+			if (GCthread.currentlyGC) {
+				//If actor is created during a GC, do not try to collect it.  Grace period
+				request.generation = GCthread.gcGeneration+1;
+			} else {
+				request.generation = GCthread.gcGeneration;
+			}
+			
 			newImp = (ActorImpl) request.implToCreate.newInstance();
+			
 			// If necessary, generate a name for the new actor
 			if (reqName == null) {
 				newName = session.handlerGenerateName();
@@ -1063,12 +1080,19 @@ public class BasicActorManager extends ActorManager {
 			// Register the new actor for logging...
 			// Log.logThread("Actor", newImp);
 			session.handlerRegister(newName);
-
-			/*
-			 * synchronized (managed_actors) { managed_actors.put(newAct,
-			 * newEntry); newEntry.in(Thread.currentThread()); }
-			 */
+			
+			//TODO marker
+			System.out.println(request.behToCreate.getName());
 			receptionists.put(newAct, newImp);
+			synchronized(localActors) {
+				if (request.isRoot){ 
+					((BasicActorImpl)newImp).actorGCSet = BasicActorImpl.GC_SET.ROOT;
+				}
+				System.out.println(newAct);
+				((BasicActorImpl)newImp).gcGen = GCthread.gcGeneration;
+				localActors.put(newAct, (BasicActorImpl) newImp);
+			}
+			
 			newAct.in(Thread.currentThread());
 
 			// PRAGMA
@@ -1238,10 +1262,13 @@ public class BasicActorManager extends ActorManager {
 			 * "Message was delivered to manager which doesn't manage actor!");
 			 * entry.in(Thread.currentThread()); }
 			 */
+			
+			//TODO marker
 
 			ActorImpl imp = receptionists.get(del.receiver);
 			ActorName lName = implGetName(imp);
 			lName.in(Thread.currentThread());
+			
 			implDeliver(imp, del);
 			lName.out(Thread.currentThread());
 		} catch (Exception e) {
@@ -1543,7 +1570,6 @@ public class BasicActorManager extends ActorManager {
 		 * }
 		 */
 
-		// TODO Don't think this can happen
 		/*
 		 * if (!done) throw new SecurityException(
 		 * "ERROR: calling ActorImpl not managed by this manager");
@@ -1575,6 +1601,12 @@ public class BasicActorManager extends ActorManager {
 		actorScheduler.scheduleThread(new Thread(new CleanupReqMap(),
 				"requestMapCleanup"));
 	}
+	
+	//TODO marker
+	void startGC() {
+        actorScheduler.scheduleThread(new Thread(GCthread, 
+              "garbageCollectorThread"));
+    }
 
 	/**
 	 * This method grabs the next free <em>ServiceThread</em> from the
@@ -1606,6 +1638,193 @@ public class BasicActorManager extends ActorManager {
 	// Inner Classes
 	// ///////////////////////////////////////////////////////////////////
 	/**
+     * This class represents a periodic garbage collection task.
+     */
+    
+    //TODO placeholder
+    class GCReqThread implements Runnable {
+        final private long GC_PERIOD = 5000; //attempt to run garbage collection every 10 seconds
+        //final private long lastGC = System.currentTimeMillis(); //last time GC was run
+        private long lastGC = 0;
+        
+        public volatile boolean currentlyGC = false;
+        public volatile boolean scavengeFin = false;
+        public volatile boolean GCFin = false;
+        public volatile long gcGeneration = 0;
+        
+        @Override
+        public void run() {
+            try {
+                //Thread.sleep(1000); //sleep 500ms so actors have begun to run
+                while(true) {
+                    Thread.sleep(GC_PERIOD);
+                    long elapsed = System.currentTimeMillis() - lastGC;
+                    //System.out.println("elapsed time: " + elapsed);
+                    if (elapsed < GC_PERIOD) {
+                        Thread.sleep(GC_PERIOD - elapsed);
+                    }
+                    //debug
+                    /*
+                    if (gcGeneration > 0) {
+                    	return;
+                    }
+                    */
+                    
+                    currentlyGC = true;
+                    GCFin = false;
+                    scavengeFin = false;
+                    numAcks = 0;
+                    numRoot = 0;
+                    
+                    
+                    System.out.println("elapsed time, GC starting");
+                    
+                    // global snapshot 
+                    
+                    // send out GC begin messages
+                    
+                    // initialize GC state.  
+                    // set all untouched except for tenured and root set.
+                    // set currentlygc of all to true so msgs are correct tag.
+                    synchronized(localActors) {
+                    	System.out.println(localActors.size());
+                    	for (ActorName key : localActors.keySet()) {
+                    		BasicActorImpl impl = localActors.get(key);
+                    		System.out.println(impl.toString());
+                    		System.out.println(key.toString());
+                    		if (impl.actorGCSet == BasicActorImpl.GC_SET.ROOT ){
+                    			// root actor always touched
+                    			impl.actorGCStatus = BasicActorImpl.GC_STATUS.TOUCHED;
+                    			System.out.println("root actor");
+                    			numRoot++;
+                    		} 
+                    		else if (impl.gcGen > gcGeneration) { 
+                    			// if the actor is tenured
+                    			impl.actorGCStatus = BasicActorImpl.GC_STATUS.TOUCHED;
+                    			System.out.println("tenured actor");
+                    			numRoot++;
+                    		}
+                    		else {
+                    			impl.actorGCStatus = BasicActorImpl.GC_STATUS.UNTOUCHED;
+                    			impl.actorGCSet = BasicActorImpl.GC_SET.SCAVENGE;
+                    		}
+                    		impl.currentlyGC = true;
+                    		impl.getAquaintances(gcGeneration, localActors);
+                    		System.out.println("has n acq: " + impl.GCacq.size());
+                        }
+                    }
+                    
+                    System.out.println(numRoot + " :: in the root set");
+                    
+                    //TODO Send all aquaintances of the root set (+ tenure set) a
+                    // GC message
+                    synchronized (localActors) {
+                    for (ActorName key : localActors.keySet()) {
+                    	BasicActorImpl impl = localActors.get(key);
+                    	if (impl.actorGCSet == BasicActorImpl.GC_SET.ROOT 
+                    			|| impl.gcGen > gcGeneration) {
+                    		// root set begins the chain of gc messages
+                    		
+                    		for (ActorName acq : impl.GCacq){
+                    			//System.out.println(acq.toString());
+                    			ActorMsgRequest gcmsg = new ActorMsgRequest(key, 
+                    					acq, "test", new Object[0] );
+                    			gcmsg.msgtype = ActorMsgRequest.GC_TYPE.GC;
+                    			//System.out.println(gcmsg);
+                    			actorSend(impl, gcmsg);
+                    		}
+                    		
+                    	}
+                    }
+                    }
+                    
+                    // wait to receive all acks
+                    if (numRoot == 0) scavengeComplete();
+                    
+                    while (!scavengeFin) {
+                    	System.out.println("GC received: " + numAcks + "/" + numRoot);
+                    	Thread.sleep(500);
+                    }
+                    
+                    System.out.println("received all acks from root set");
+                    
+                    // if you are the node that started the gc phase, send gc termination
+                    // message to all other nodes.
+                    // otherwise wait for gc scavenge to finish on all nodes by receiving
+                    // a gc termination message from.
+                    if (distNodes.size() == 0) gcComplete();
+                    
+                    while (!GCFin) {
+                    	System.out.println("Waiting GC termination messages from other nodes");
+                    	Thread.sleep(500);
+                    }
+                    
+                    // set actors as garbage by checking set if untouched or suspended 
+                    synchronized(localActors) {
+                    	//ArrayList<ActorName> garbage = new ArrayList<ActorName>();
+                    	Hashtable<ActorName, BasicActorImpl> garbage = 
+                    			new Hashtable<ActorName, BasicActorImpl>();
+                    	for (ActorName key : localActors.keySet()) {
+                    		BasicActorImpl impl = localActors.get(key);
+                    		impl.currentlyGC = false;
+                    		if (impl.actorGCStatus == BasicActorImpl.GC_STATUS.UNTOUCHED
+                    				|| impl.actorGCStatus == BasicActorImpl.GC_STATUS.SUSPENDED) {
+                    			// remove from local actors and from scheduler
+                    			garbage.put(key, impl);
+                    		}
+                    	}
+                    	
+                    	for (ActorName key : garbage.keySet()) {
+                    		//TODO marker
+                    		System.out.println("removing garbage actor: " + key);
+                    		
+                    		localActors.remove(key);
+                    		if (externals.containsKey(key)) {
+                    			externals.remove(key);
+                    		}
+                    		if (receptionists.containsKey(key)) {
+                    			receptionists.remove(key);
+                    		}
+                    		//send the actor a stop message so it wakes up then stops execution.
+                    		//remove from scheduler as well.  may need to remove from receptionist
+                    		//and nameservice because the actor will never receive a message.
+                    		
+                    		ActorMsgRequest stopmsg = new ActorMsgRequest(defaultActorName, 
+                					key, "test", new Object[0] );
+                    		stopmsg.msgtype = ActorMsgRequest.GC_TYPE.STOP;
+                    		actorSend(garbage.get(key), stopmsg);
+                    	}
+                    }
+                    
+                    lastGC = System.currentTimeMillis();
+                    currentlyGC = false;
+                    gcGeneration++;
+                    ActorMsgRequest.GENERATION = gcGeneration;
+                }
+            } catch (Throwable e) {
+            	System.out.println(e.getLocalizedMessage());
+            	System.out.println(e.toString());
+            	System.out.println(e.getMessage());
+            	startGC();
+            }
+        }
+        
+        public boolean isCollecting() {
+            return currentlyGC;
+        }
+        
+        public void gcComplete() {
+        	GCFin = true;
+        }
+        
+        public void scavengeComplete() {
+        	scavengeFin = true;
+        }
+        
+    }
+    
+    
+    /**
 	 * This class implements a cleanup thread that is used to cleanup the
 	 * requestMap table when old requests have become invalid (i.e. they have
 	 * either completed without errors or have generated exceptions which have
@@ -1641,7 +1860,7 @@ public class BasicActorManager extends ActorManager {
 				while (true) {
 					// Sleep until the next phase
 					Thread.sleep(GC_TIMEOUT);
-
+					
 					// Remove everything scheduled for the current phase
 					for (e = nextRemoval.keys(); e.hasMoreElements();) {
 						task = e.nextElement();

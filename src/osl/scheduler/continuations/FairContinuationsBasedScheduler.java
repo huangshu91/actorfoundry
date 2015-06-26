@@ -93,9 +93,13 @@ public class FairContinuationsBasedScheduler implements Scheduler, Runnable {
 			if (!open) {
 				synchronized (barrierSemaphore) {
 					synchronized (privateSchedule) {
+						//TODO marker
+						System.out.println("barrier semaphore: " + barrierSemaphore.get());
+						System.out.println("workerpoolsize: " + currentWorkerPoolSize);
+						System.out.println("privateSchedule: " + privateSchedule.toString());
 						if (barrierSemaphore.get() == currentWorkerPoolSize
 								&& privateSchedule.empty()) {
-							System.out.println("Exiting...");
+							System.out.println("Exiting...Testing");
 							System.exit(0);
 						}
 					}

@@ -21,6 +21,11 @@ public class ActorCreateRequest extends ActorRequest {
 	 * The actor performing the creation.
 	 */
 	public ActorName requester;
+	
+	//TODO marker
+	public boolean isRoot = false;
+	
+	public long generation = 0;
 
 	/**
 	 * The class of the new actor requested. This should be a subclass of

@@ -16,7 +16,11 @@
  */
 package osl.examples.helloworld;
 
+import java.util.ArrayList;
+
 import osl.manager.Actor;
+import osl.manager.ActorName;
+import osl.manager.RemoteCodeException;
 import osl.manager.annotations.message;
 
 /**
@@ -37,6 +41,12 @@ import osl.manager.annotations.message;
 public class WorldActor extends Actor {
 
 	// Default constructor is ok
+	
+	private ActorName otherActor = null;
+	
+	private ArrayList<ActorName> listnames = null;
+	
+	private ArrayList<Integer> filler = null;
 
 	/**
 	 * 
@@ -49,12 +59,34 @@ public class WorldActor extends Actor {
 	 */
 	@message
 	public void world() {
+		filler = new ArrayList<Integer>();
+		for (int i = 0; i < 1000; i++) {
+			filler.add(i);
+		}
 		send(stdout, "println", "World!");
 	}
 	
 	@message
+	public void world(ActorName caller) throws RemoteCodeException {
+		call(stdout, "println", "World2!");
+		otherActor = caller;
+		send(caller, "test");
+	}
+	
+	@message
+	public void createAcq() throws RemoteCodeException {
+		ActorName throwaway = create(WorldThree.class);
+		//send(throwaway, "test", "::3rdgen");
+		send(throwaway, "worldthree");
+	}
+	
+	@message
 	public void test(String obj) {
-		send(stdout, "println", "Testing");
-		send(stdout, "println", obj);
+		send(stdout, "println", "Testing"+obj);
+	}
+	
+	@message
+	public void test() {
+		send(stdout, "println", "Testing World");
 	}
 }

@@ -184,6 +184,9 @@ public class FoundryStart {
 												// which is
 								// ACTOR_IMPLEMENTOR
 								String implClass = st.nextToken();
+								
+								//TODO marker
+								System.out.println("using implementor: "+implClass);
 								if (implClass != null) {
 									actorImplementorString = implClass;
 								} else {
@@ -517,6 +520,7 @@ public class FoundryStart {
 				ActorCreateRequest mainActorCreateRequest = new ActorCreateRequest(
 						null, Class.forName(initActor), Class
 								.forName(actorImplementorString), null, null);
+				mainActorCreateRequest.isRoot = true;
 				ActorName mainActorName = localMgr.managerCreate(
 						mainActorCreateRequest, null);
 
@@ -526,6 +530,8 @@ public class FoundryStart {
 
 				localMgr.managerDeliver(mainActorMsgRequest);
 			}
+			
+			//TODO marker
 
 			if (open) {
 				// Open a TCP port to wait for requests

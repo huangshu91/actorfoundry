@@ -111,8 +111,6 @@ public class BasicActorManager extends ActorManager {
 	 */
 	// protected Hashtable<ActorName, ActorEntry> managed_actors = null;
 	protected Hashtable<ActorName, ActorImpl> receptionists = null;
-	
-	protected Hashtable<ActorName, ActorImpl> localActors = null;
 	/**
 	 * This hashtable maintains the current set of registered services available
 	 * to local actors.
@@ -143,9 +141,6 @@ public class BasicActorManager extends ActorManager {
 	 * automatically added to the queue once it has completed its task.
 	 */
 	protected Queue<ServiceThread> serviceQueue = null;
-	
-	public boolean currentlyGC = false;
-	protected GCReqThread GCthread = null;
 
 	/**
 	 * The default constructor. Initialize all fields that can be initialized
@@ -154,12 +149,9 @@ public class BasicActorManager extends ActorManager {
 	public BasicActorManager() {
 		// managed_actors = new Hashtable<ActorName, ActorEntry>();
 		receptionists = new Hashtable<ActorName, ActorImpl>(50);
-		localActors = new Hashtable<ActorName, ActorImpl>();
 		localServices = new Hashtable<ServiceName, Service>();
 		requestMap = new Hashtable<RequestID, ActorMsgRequest>();
 		// serviceQueue = new Queue<ServiceThread>();
-		
-		GCthread = new GCReqThread();
 	}
 
 	// ///////////////////////////////////////////////////////////////////
@@ -331,9 +323,6 @@ public class BasicActorManager extends ActorManager {
 			ActorImpl newImp = (ActorImpl) request.implToCreate.newInstance();
 			ActorName newAct = new ActorName(newName, newImp);
 			// ActorEntry newEntry = new ActorEntry(newImp);
-			
-			// Add the actor to the localActors so the GC can iterate through root actors.
-			localActors.put(newAct, newImp);
 
 			// Register the new actor for logging before we initialize it.
 			// Note that we do this BEFORE the new actor is initialized.
@@ -1617,47 +1606,6 @@ public class BasicActorManager extends ActorManager {
 	// Inner Classes
 	// ///////////////////////////////////////////////////////////////////
 	/**
-	 * This class represents a periodic garbage collection task.
-	 */
-	class GCReqThread implements Runnable {
-		final private long GC_PERIOD = 10000; //attempt to run garbage collection every 10 seconds
-		final private long lastGC = System.currentTimeMillis(); //last time GC was run
-		
-		final public boolean currentlyGC = false;
-		
-		@Override
-		public void run() {
-			System.out.println("reached here");
-			try {
-				while(true) {
-					long elapsed = System.currentTimeMillis() - lastGC;
-					if (elapsed < GC_PERIOD) {
-						Thread.sleep(GC_PERIOD - elapsed);
-					}
-					
-					System.out.println("elapsed time, GC starting");
-					
-					// send out GC begin messages
-					
-					// capture state
-					//for (ActorName key : localActors.keySet()) {
-					//	localActors.get(key);
-					//}
-					
-					// check aquaintances
-					
-					// set actors as garbage
-					
-					
-				}
-			} catch (Throwable e) {
-				
-			}
-		}
-		
-	}
-	
-	/**
 	 * This class implements a cleanup thread that is used to cleanup the
 	 * requestMap table when old requests have become invalid (i.e. they have
 	 * either completed without errors or have generated exceptions which have
@@ -1882,6 +1830,7 @@ public class BasicActorManager extends ActorManager {
 				// Log.println("<BasicActorManager.ServiceThread.deliverMessage> Delivering message...");
 
 				// Deliver the message to the target
+				System.out.println(reqCopy);
 				implDeliver(toDeliverTarget.getActor(), reqCopy);
 
 				// Remove our access and return

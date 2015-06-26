@@ -1,8 +1,14 @@
 package osl.manager.basic;
 
 import java.io.Serializable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Type;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Hashtable;
 
 import kilim.Task;
 import kilim.pausable;
@@ -91,19 +97,6 @@ public class BasicActorImpl extends ActorImpl {
 	transient protected ActorManager ourManager = null;
 
 	/**
-	 * The <em>ActorManagerName</em> of our actor manager. Why is this public?
-	 */
-	// transient public ActorManagerName managerName = null;
-	/**
-	 * This hashtable hashes the names of our public methods to an array of
-	 * MethodStructure instances for quick lookup during method invocation. We
-	 * initialize this table when the actor is instantiated by an
-	 * <em>ActorManager</em>. Note that this table is transient because the
-	 * things it contains (Method instances) are final and therefore can't be
-	 * serialized for migration.
-	 */
-	// transient protected Hashtable<String, Object> ourMethods = null;
-	/**
 	 * This field holds a class instance which is used to search mail queues for
 	 * RPC reply messages. We detect these messages when the user sends an RPC
 	 * request.
@@ -123,6 +116,137 @@ public class BasicActorImpl extends ActorImpl {
 	 */
 	protected ActorCreateRequest createReq = null;
 	protected ActorMsgRequest reusableMsgObj = null;
+	
+	private volatile ActorMsgRequest currExecuteMsg = null;
+	
+	public volatile long gcGen = 0;
+	public volatile int reqAcks = 0;
+	public volatile int numAcks = 0;
+	public volatile boolean currentlyGC = false;
+	
+	public static int TENURE_THRESHOLD = 3;
+	public int survivedGC = 0;
+    
+    public static enum GC_STATUS {
+        UNTOUCHED, TOUCHED, SUSPENDED
+    }
+    
+    public static enum GC_SET {
+        ROOT, OLDSPACE, SCAVENGE
+    }
+    
+    public volatile GC_STATUS actorGCStatus = BasicActorImpl.GC_STATUS.UNTOUCHED;
+    
+    public volatile GC_SET actorGCSet = BasicActorImpl.GC_SET.SCAVENGE; 
+    
+    public volatile ArrayList<ActorName> GCacq = null;
+    public volatile ArrayList<ActorName> GCinvacq = null;
+    public ActorName backpropActor = null;
+    
+	private static Object[] zeroArray = new Object[0];
+    
+    //TODO marker
+	public void getAquaintances(long gen, Hashtable<ActorName, BasicActorImpl> locals) {
+		try {
+			reqAcks = 0;
+			numAcks = 0;
+			gcGen = gen;
+			GCacq.clear();
+			GCinvacq.clear();
+			backpropActor = null;
+			
+			Field actorbase = actorExecutor.getClass().getDeclaredField("actor");
+			
+			actorbase.setAccessible(true);
+			Object actorobj = actorbase.get(actorExecutor);
+			Class<?> aClass = actorbase.get(actorExecutor).getClass();
+			System.out.println(aClass);
+			
+			Field[] privFields = aClass.getDeclaredFields();
+			Field[] pubFields = aClass.getFields();
+			
+			//System.out.println("num privfields: " + privFields.length);
+			//System.out.println("num pubfields: " + pubFields.length);
+			extractAquaintances(privFields, actorobj);
+			extractAquaintances(pubFields, actorobj);
+			
+			/*
+			if (isActive()) {
+				checkMessages();
+			} else {
+				actorGCSet = BasicActorImpl.GC_SET.SUSPENDED;
+			}
+			*/
+			
+			reqAcks = GCacq.size() + GCinvacq.size();
+			System.out.println("reqAcks: " + reqAcks);
+			
+		} catch (Exception e) {
+			System.out.println("error thrown in getAquaintances");
+			System.out.println(e.getMessage());
+		}
+	}
+	
+	//TODO marker
+	public void extractAquaintances(Field[] fields, Object actorobj) throws Exception {
+		//System.out.println("extract Aquaintances");
+		for (Field f : fields) {
+			f.setAccessible(true);
+			Type base = f.getGenericType();
+			Object fieldObj = f.get(actorobj);
+			
+			//System.out.println("test field: " + f.getName());
+			
+			if (fieldObj instanceof ActorName && fieldObj != null) {
+				//System.out.println("FOUND: "+f.getName());
+				GCacq.add((ActorName) fieldObj);
+			}
+			
+			if (base instanceof ParameterizedType && fieldObj != null) {
+				//System.out.println("parameterized");
+				Type coll = ((ParameterizedType) base).getActualTypeArguments()[0];
+				//System.out.println(coll.toString());
+				if (coll.toString().equals("class osl.manager.ActorName")) {
+					//System.out.println("collection of actornames");
+					
+					Collection<Object> actualval = (Collection<Object>) fieldObj;
+					//System.out.println("coll has n objects: "+actualval.size());
+					
+					for (Object o : actualval) {
+						GCacq.add((ActorName) o);
+					}
+				}
+			}
+		}
+		
+	}
+	
+	//TODO marker
+	public void checkMessages() {
+		synchronized(mailQueue) {
+		if (!mailQueue.empty()) {
+			for (int i = 0; i < mailQueue.numElements(); i++) {
+				ActorMsgRequest msg = (ActorMsgRequest) mailQueue.peekNth(i);
+				
+				peekMessage(msg);
+			}
+		}
+		}
+		
+		if (currExecuteMsg != null) {
+			peekMessage(currExecuteMsg);
+		}
+	}
+	
+	protected void mgrActorSend(ActorManager mgr, ActorMsgRequest message)
+			throws RemoteCodeException {
+		if (currentlyGC) {
+			message.msgcolor = ActorMsgRequest.MSG_COLOR.NEW;
+		} else {
+			message.msgcolor = ActorMsgRequest.MSG_COLOR.OLD;
+		}
+		super.mgrActorSend(mgr, message);
+	}
 
 	// //////////////////////////////////////////////////////////////////
 	// The default constructor is used for this class. Most of the
@@ -136,59 +260,6 @@ public class BasicActorImpl extends ActorImpl {
 	// dispatch are defined here.
 	// //////////////////////////////////////////////////////////////////
 
-	/**
-	 * This method is called from <em>run</em> to invoke a method on this actor.
-	 * Any exception is passed up to the caller of this method. All exceptions
-	 * are passed up to the caller.
-	 * 
-	 * @param <b>nextMethod</b> The <em>String</em> naming the next method to
-	 *        invoke on the encapsulated actor.
-	 * @param <b>methodArgs</b> An array of <em>Object</em>s to pass to the
-	 *        target method.
-	 * @return The <em>Object</em> returned by the target method.
-	 * @exception java.lang.NoSuchMethodException
-	 *                Thrown if no method can be found with a signature that
-	 *                matches <em>nextMethod</em>(<em>methodArgs</em>).
-	 * @exception java.lang.reflect.InvocationTargetException
-	 *                Thrown if an error is encountered while invoking
-	 *                <em>nextMethod</em>.
-	 * @exception java.lang.IllegalAccessException
-	 *                Thrown if the target method is inaccessible.
-	 */
-
-	/*
-	 * protected Object invokeMethod(String nextMethod, Object[] methodArgs)
-	 * throws NoSuchMethodException, InvocationTargetException,
-	 * IllegalAccessException { MethodStructure[] potMeths = null; Method
-	 * toInvoke = null; boolean found = false;
-	 * 
-	 * // Grab the method we are supposed to invoke, barf if we can't // find
-	 * any such method potMeths = (MethodStructure[])
-	 * ourMethods.get(nextMethod);
-	 * 
-	 * if (potMeths == null) throw new
-	 * NoSuchMethodException("No method matching \"" + nextMethod +
-	 * "\" in this object");
-	 * 
-	 * for(int i=0; (i < potMeths.length) && (!found); i++) { if (methodArgs ==
-	 * null) { if (potMeths[i].argTypes.length == 0) { found = true; toInvoke =
-	 * potMeths[i].meth; break; } else continue; } else if (potMeths[i].argTypes
-	 * == null) continue; else if (methodArgs.length !=
-	 * potMeths[i].argTypes.length) continue;
-	 * 
-	 * found = true; toInvoke = potMeths[i].meth; for(int j=0;
-	 * j<potMeths[i].argTypes.length; j++) if ((methodArgs[j] != null) &&
-	 * (!potMeths[i].argTypes[j].isInstance(methodArgs[j]))) { found = false;
-	 * break; } }
-	 * 
-	 * if (!found) throw new NoSuchMethodException("No method matching \"" +
-	 * nextMethod + "\" in this object");
-	 * 
-	 * // Now invoke the method and send back the return value try { return
-	 * toInvoke.invoke(ourActor, methodArgs); } catch (InvocationTargetException
-	 * e) { if (e.getTargetException() instanceof ThreadDeath) throw
-	 * (ThreadDeath) e.getTargetException(); else throw e; } }
-	 */
 	/**
 	 * This method handles the processing of the next message on the actor's
 	 * mail queue. We also inspect our local state after the message has been
@@ -207,30 +278,6 @@ public class BasicActorImpl extends ActorImpl {
 	protected void processMessage(ActorMsgRequest nextMsg) throws Exception {
 		Object rVal = null;
 		try {
-			// Attempt to pass this message as an invocation to our
-			// managed actor
-			// PRAGMA [assert] Assert.assert(nextMsg.methodArgs != null,
-			// "message not properly formatted");
-			// PRAGMA
-			// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-			// Log.println("About to invoke method: " + nextMsg.method);
-			// PRAGMA
-			// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-			// Log.println("with arguments: (");
-			// PRAGMA
-			// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-			// for (int DI=0; DI < nextMsg.methodArgs.length; DI++)
-			// PRAGMA
-			// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-			// Log.println("\t\t" + DI + ": " + nextMsg.methodArgs[DI]);
-			// PRAGMA
-			// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-			// Log.println(")");
-			// rVal = invokeMethod(nextMsg.method, nextMsg.methodArgs);
-			// PRAGMA
-			// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-			// Log.println("Done invoking method: " + nextMsg.method);
-
 			rVal = actorExecutor.execute(nextMsg);
 
 			// If this message is an RPC request, then send out the reply
@@ -238,21 +285,7 @@ public class BasicActorImpl extends ActorImpl {
 			if (nextMsg.RPCRequest && rVal != ActorExecutor.DISABLED_FLAG) {
 				Object[] returnIt = new Object[1];
 				returnIt[0] = rVal;
-				// ActorMsgRequest theReply = new ActorMsgRequest(self,
-				// nextMsg.sender, "__RPCReply", returnIt, false);
-				// PRAGMA
-				// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-				// Log.println("<BasicActorImpl.processMessage> Request is RPC, returning value: "
-				// + rVal);
-				// PRAGMA
-				// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-				// if (rVal != null)
-				// PRAGMA
-				// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-				// Log.println("<BasicActorImpl.processMessage> with type: " +
-				// rVal.getClass());
-				// stampRequest(theReply);
-				// implSend(theReply);
+				
 				// Trying to send the reply back in the same "box"
 				reusableMsgObj = nextMsg;
 
@@ -271,19 +304,7 @@ public class BasicActorImpl extends ActorImpl {
 
 			if ((!nextMsg.receiver.equals(self))
 					|| (!nextMsg.method.equals("asynchException"))) {
-				// Note: we NEVER send an exception if the message which
-				// caused the exception was an "asynchException" message.
-				// If we get such an exception then we just rethrow it so
-				// that it is caught by the outside block.
-
-				/*
-				 * if (nextMsg.receiver.equals(self))Log.println(
-				 * "<BasicActorImpl.processMessage> Attempt to invoke method \""
-				 * + nextMsg.method + "\" caused exception, local trace is...");
-				 * elseLog.println(
-				 * "<BasicActorImpl.processMessage> Attempt to process message from requestAsynchSend failed, local trace is..."
-				 * );
-				 */
+				
 				/*
 				 * if (e instanceof InvocationTargetException) { // Unwrap
 				 * invocation target exceptions so we get a more reasonable
@@ -376,8 +397,6 @@ public class BasicActorImpl extends ActorImpl {
 				}
 			}
 	}
-
-	private static Object[] zeroArray = new Object[0];
 
 	/**
 	 * This method initializes the standard streams for this implementation and
@@ -476,6 +495,8 @@ public class BasicActorImpl extends ActorImpl {
 	 * <em>Queue</em>, the sleeping thread is automatically awoken when a new
 	 * message arrives.
 	 */
+	
+	//TODO marker
 	@pausable
 	public void execute() {
 		ActorMsgRequest nextMsg = null;
@@ -489,9 +510,20 @@ public class BasicActorImpl extends ActorImpl {
 			// + self);
 
 			while (true) {
+				//TODO marker
 				if (!mailQueue.empty() && messageCount < MAX_MESSAGES) {
 					// Get the next message to process and call our actor
 					nextMsg = (ActorMsgRequest) mailQueue.dequeue();
+					
+					currExecuteMsg = nextMsg;
+					
+					// this message was delivered so that the thread would wake up.
+					// however the message means that the thread should stop execution
+					// the thread will be removed from the scheduler.  
+					if (nextMsg.msgtype == ActorMsgRequest.GC_TYPE.STOP){
+						System.out.println("STOPPED: " + self);
+						return;
+					}
 
 					processMessage(nextMsg);
 					// reusableMsgObj = nextMsg;
@@ -500,26 +532,15 @@ public class BasicActorImpl extends ActorImpl {
 					// If we just migrated then exit this actor (it's garbage
 					// now)
 					if (migrateTo != null)
-						// PRAGMA
-						// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-						// {
-						// PRAGMA
-						// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-						// Log.println("<BasicActorImpl.run> actor migrated, shutting down");
 						return;
-					// PRAGMA
-					// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-					// } else
-					// PRAGMA
-					// [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-					// Log.println("<BasicActorImpl.run> method complete, moving to next message");
-
+					
+					currExecuteMsg = null;
+					
 				} else {
 					// See if the mail queue is still empty. If it is then
 					// provide a hint to our scheduler and put this thread to
 					// sleep. Otherwise we automatically go back and pick off
 					// the message.
-					// synchronized (mailQueue) {
 					if (mailQueue.empty()) {
 						// mailQueue.wait();
 						// Task.yield();
@@ -530,7 +551,6 @@ public class BasicActorImpl extends ActorImpl {
 						Task.yield();
 					}
 					messageCount = 0;
-					// }
 				}
 			}
 		} catch (Throwable e) {
@@ -687,43 +707,11 @@ public class BasicActorImpl extends ActorImpl {
 		conArgs = req.constructorArgs;
 		createReq = req;
 		context = req.context;
-
-		// // Now that that's done, build the method tables for the actor we
-		// // manage.
-		// Method[] theMeths = null;
-		// ourMethods = new Hashtable<String, Object>();
-		//
-		// // Look up and store the public methods of the actor we are about
-		// // to create
-		// try {
-		// theMeths = actorClass.getMethods();
-		//
-		// for(int i=0; i<theMeths.length; i++)
-		// if (ourMethods.containsKey(theMeths[i].getName()))
-		// ((MethodStructureVector) ourMethods.get(theMeths[i].getName())).
-		// insertElement(new MethodStructure(theMeths[i],
-		// theMeths[i].getParameterTypes()));
-		// else {
-		// MethodStructureVector newVec = new MethodStructureVector();
-		// ourMethods.put(theMeths[i].getName(), newVec);
-		// newVec.insertElement(new MethodStructure(theMeths[i],
-		// theMeths[i].getParameterTypes()));
-		// }
-		//	  
-		// for(Enumeration<String> e=ourMethods.keys(); e.hasMoreElements(); ) {
-		// String methName = e.nextElement();
-		// MethodStructureVector methObjs = (MethodStructureVector)
-		// ourMethods.get(methName);
-		// MethodStructure[] refArray = new MethodStructure[methObjs.size()];
-		//
-		// methObjs.copyInto(refArray);
-		// ourMethods.put(methName, refArray);
-		// }
-		//
-		// } catch(SecurityException e) {
-		// throw new SecurityException("Error instantiating " +
-		// actorClass.toString() + ": " + e.toString());
-		// }
+		gcGen = req.generation;
+		
+		//TODO marker
+		GCacq = new ArrayList<ActorName>();
+		GCinvacq = new ArrayList<ActorName>();
 
 		// Initialize our mail queue
 		mailQueue = new LSCQueue<Object>();
@@ -748,44 +736,6 @@ public class BasicActorImpl extends ActorImpl {
 		// managerName = ourMgr.managerGetName();
 		migrateTo = null;
 		conArgs = null;
-
-		// // Now restore the method tables for the actor we manage. We
-		// // can't migrate these tables because things like
-		// // java.lang.reflect.Method aren't Serializable (they are mostly
-		// // native implementations anyway).
-		// Method[] theMeths = null;
-		// ourMethods = new Hashtable<String, Object>();
-		//
-		// try {
-		// theMeths = actorClass.getMethods();
-		//
-		// for(int i=0; i<theMeths.length; i++)
-		// if (ourMethods.containsKey(theMeths[i].getName()))
-		// ((MethodStructureVector) ourMethods.get(theMeths[i].getName())).
-		// insertElement(new MethodStructure(theMeths[i],
-		// theMeths[i].getParameterTypes()));
-		// else {
-		// MethodStructureVector newVec = new MethodStructureVector();
-		// ourMethods.put(theMeths[i].getName(), newVec);
-		// newVec.insertElement(new MethodStructure(theMeths[i],
-		// theMeths[i].getParameterTypes()));
-		// }
-		//	  
-		// for(Enumeration<String> e=ourMethods.keys(); e.hasMoreElements(); ) {
-		// String methName = e.nextElement();
-		// MethodStructureVector methObjs = (MethodStructureVector)
-		// ourMethods.get(methName);
-		// MethodStructure[] refArray = new MethodStructure[methObjs.size()];
-		//
-		// methObjs.copyInto(refArray);
-		// ourMethods.put(methName, refArray);
-		// }
-		//
-		// } catch(SecurityException e) {
-		// throw new SecurityException("Error building method tables for " +
-		// actorClass.toString() + ": " + e.toString());
-		// }
-
 	}
 
 	/**
@@ -800,17 +750,187 @@ public class BasicActorImpl extends ActorImpl {
 	 *        This structure must be maintained by the actor as it is required
 	 *        if an exception is returned to the manager.
 	 */
+	
+	//TODO marker
 	protected void actorDeliver(ActorMsgRequest msg) {
+		
+		try {
+			
+		//check if the message involves garbage collection.
+		//if so do not enqueue and instead handle differently.
+		if (msg.msgtype == ActorMsgRequest.GC_TYPE.GC) {
+			System.out.println(self.toString() + " : has received a GC message");
+			
+			// acquaintances of root and future sets have already been explored.
+			// if actor's generation tag is the future tag and send backprop
+			if (actorGCSet == BasicActorImpl.GC_SET.ROOT || 
+				actorGCSet == BasicActorImpl.GC_SET.OLDSPACE ||
+				gcGen > ActorMsgRequest.GENERATION ){
+				System.out.println("ROOT/OLDSPACE received GC::return");
+				msg.msgtype = ActorMsgRequest.GC_TYPE.BACKPROP;
+				msg.receiver = msg.sender;
+				msg.sender = self;
+				mgrActorSend(ourManager, msg);
+				return;
+			}
+			
+			touchAndScavenge(msg);
+			
+			return;
+		}
+		else if (msg.msgtype == ActorMsgRequest.GC_TYPE.GCINV){
+			System.out.println(self.toString() + " : has received a INV-GC message");
+			
+			// acquaintances of root and future sets have already been explored.
+			if (actorGCSet == BasicActorImpl.GC_SET.ROOT || 
+				actorGCSet == BasicActorImpl.GC_SET.OLDSPACE){
+				System.out.println("ROOT/OLDSPACE received GCINV::return");
+				return;
+			}
+			
+			// if actor's generation tag is the future tag and send backprop
+			if (gcGen > ActorMsgRequest.GENERATION) { 
+				msg.msgtype = ActorMsgRequest.GC_TYPE.BACKPROP;
+				msg.receiver = msg.sender;
+				msg.sender = self;
+				mgrActorSend(ourManager, msg);
+				return;
+			}
+			
+			// if actor is active, 
+			if (isActive()) {
+				touchAndScavenge(msg);
+				
+			} else {
+				actorGCStatus = BasicActorImpl.GC_STATUS.SUSPENDED;
+				
+				// send inverse gc messages to all our acquaintances
+				for (ActorName iacq : GCinvacq) {
+					msg.msgtype = ActorMsgRequest.GC_TYPE.GCINV;
+					msg.receiver = iacq;
+					msg.sender = self;
+					mgrActorSend(ourManager, msg);
+				}
+			}
+			
+			return;
+		}
+		else if (msg.msgtype == ActorMsgRequest.GC_TYPE.BACKPROP) {
+			System.out.println(self.toString() + " : has received a BACKPROP message");
+			numAcks++;
+			
+			if (numAcks == reqAcks) {
+				if (backpropActor != null) {
+					// send backprop to whoever first sent you a gc message.
+					// you are not part of the root set for this generation.
+					msg.msgtype = ActorMsgRequest.GC_TYPE.BACKPROP;
+					msg.receiver = backpropActor;
+				} else {
+					System.out.println("ROOT or OLDSPACE received all acks");
+					// you are part of the root set for this generation
+					// send the finish type back to the manager
+					msg.msgtype = ActorMsgRequest.GC_TYPE.FINISH;
+				}
+				msg.sender = self;
+				mgrActorSend(ourManager, msg);
+			}
+			
+			return;
+		}
+		
+		} catch (Exception e) {
+			System.out.println("exception caught in handling gc of : " + self);
+		}
+		
+		// if the message was received during a gc, must be handled
+		if (currentlyGC) {
+			if (actorGCStatus == BasicActorImpl.GC_STATUS.UNTOUCHED) {
+				if (msg.msgcolor == ActorMsgRequest.MSG_COLOR.NEW) {
+					// do nothing
+				}
+				if (msg.msgcolor == ActorMsgRequest.MSG_COLOR.OLD){
+					peekMessage(msg);
+				}
+				else if (msg.msgcolor == ActorMsgRequest.MSG_COLOR.NA){
+					System.out.println("SHOULD NOT HAPPEN, ABORT");
+					return;
+				}
+			}
+			else if (actorGCStatus == BasicActorImpl.GC_STATUS.SUSPENDED) {
+				touchAndScavenge(msg);
+			}
+		}
+
 		// Simple, just place the message in the local mail queue. This
 		// will automatically wake our thread up if it is sleeping on the
 		// queue.
-		// PRAGMA [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-		// Log.println("<BasicActorImpl.actorDeliver>: Queueing message: " +
-		// msg);
 		mailQueue.enqueue(msg);
-		// PRAGMA [debug,osl.manager.ActorImpl,osl.manager.basic.BasicActorImpl]
-		// Log.println("<BasicActorImpl.actorDeliver>: Queueing complete");
 
+	}
+	
+	private void touchAndScavenge(ActorMsgRequest msg) {
+		try {
+		actorGCStatus = BasicActorImpl.GC_STATUS.TOUCHED;
+		
+		// change the set to either tenure or future 
+		if (survivedGC >= BasicActorImpl.TENURE_THRESHOLD) {
+			actorGCSet = BasicActorImpl.GC_SET.OLDSPACE;
+		} else {
+			//incrementing gcGen is same as indicating future space
+			gcGen++;
+		}
+		
+		// This is the actor we will send a backprop to once we receive all acks
+		backpropActor = msg.sender;
+		
+		// Actor has no acq or invacq, send backprop immediately
+		if (reqAcks == 0) {
+			msg.msgtype = ActorMsgRequest.GC_TYPE.BACKPROP;
+			msg.receiver = backpropActor;
+			msg.sender = self;
+			mgrActorSend(ourManager, msg);
+		}
+		
+		// send forward gc messages to all our acquaintances
+		for (ActorName facq : GCacq) {
+			msg.msgtype = ActorMsgRequest.GC_TYPE.GC;
+			msg.receiver = facq;
+			msg.sender = self;
+			mgrActorSend(ourManager, msg);
+		}
+		// send inverse gc messages to all our acquaintances
+		for (ActorName iacq : GCinvacq) {
+			msg.msgtype = ActorMsgRequest.GC_TYPE.GCINV;
+			msg.receiver = iacq;
+			msg.sender = self;
+			mgrActorSend(ourManager, msg);
+		}
+		} catch (Exception e) {
+			System.out.println("exception caught in touchAndScavenge of: " + self);
+		}
+	}
+	
+	//TODO marker
+	private boolean isActive() {
+		synchronized(mailQueue) {
+		if (currExecuteMsg != null || mailQueue.empty() == false) {
+			return true;
+		}
+		}
+		return false;
+	}
+	
+	//TODO marker
+	private void peekMessage(ActorMsgRequest msg) {
+		GCinvacq.add(msg.sender);
+		
+		//check the parameters of the message for ActorNames
+		for (Object param : msg.methodArgs){
+			//short circuit to make sure the object is valid
+			if (param != null && param.getClass().equals(ActorName.class)) {
+				GCacq.add((ActorName) param);
+			}
+		}
 	}
 
 	// ///////////////////////////////////////////////////////////////////////
@@ -1091,22 +1211,16 @@ public class BasicActorImpl extends ActorImpl {
 			// osl.examples.join.CountCustomer(), dummyQueue);
 
 		} catch (NoSuchMethodException e1) {
-			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		} catch (IllegalArgumentException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (InstantiationException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (IllegalAccessException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (InvocationTargetException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (ClassNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 

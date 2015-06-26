@@ -62,22 +62,6 @@ public class BasicActorImpl extends ActorImpl {
 	private static final long serialVersionUID = 4178568903516186217L;
 
 	public static final int MAX_MESSAGES = 100;
-	
-	public static enum GC_STATUS {
-		UNTOUCHED, TOUCHED, SUSPENDED
-	}
-	
-	public static enum GC_SET {
-		FUTURE, ROOT, TENURE
-	}
-	
-	public GC_STATUS actorGCStatus = BasicActorImpl.GC_STATUS.UNTOUCHED;
-	
-	public GC_SET actorGCSet = BasicActorImpl.GC_SET.FUTURE; 
-	
-	public List<ActorName> GCaquaintance = null;
-	public List<ActorName> GCinvaquaintance = null;
-
 	/**
 	 * The actor instance that we manage.
 	 */
@@ -131,7 +115,7 @@ public class BasicActorImpl extends ActorImpl {
 	 * current method has finished.
 	 */
 	transient protected ActorManagerName migrateTo = null;
-	
+
 	/**
 	 * A reference to the create request which was used to create this actor.
 	 * This field may be set to null once the new internal actor is successfully
@@ -151,7 +135,6 @@ public class BasicActorImpl extends ActorImpl {
 	// implementation. Things like general message processing and
 	// dispatch are defined here.
 	// //////////////////////////////////////////////////////////////////
-
 	/**
 	 * This method is called from <em>run</em> to invoke a method on this actor.
 	 * Any exception is passed up to the caller of this method. All exceptions
@@ -417,7 +400,7 @@ public class BasicActorImpl extends ActorImpl {
 			// Log.println("<BasicActorImpl.run> Creating stdin stream");
 			nextReq = new ActorCreateRequest(self, Class
 					.forName("osl.manager.Actor"),
-					osl.manager.gc.StreamInputActorImpl.class, zeroArray,
+					osl.manager.basic.StreamInputActorImpl.class, zeroArray,
 					null);
 			nextReq.originator = self;
 			context.stdin = mgrActorCreate(ourManager, nextReq);
@@ -429,7 +412,7 @@ public class BasicActorImpl extends ActorImpl {
 			args[0] = "out";
 			nextReq = new ActorCreateRequest(self, Class
 					.forName("osl.manager.Actor"),
-					osl.manager.gc.StreamOutputActorImpl.class, args, null);
+					osl.manager.basic.StreamOutputActorImpl.class, args, null);
 			nextReq.originator = self;
 			context.stdout = mgrActorCreate(ourManager, nextReq);
 
@@ -441,7 +424,7 @@ public class BasicActorImpl extends ActorImpl {
 			args[0] = "err";
 			nextReq = new ActorCreateRequest(self, Class
 					.forName("osl.manager.Actor"),
-					osl.manager.gc.StreamErrorActorImpl.class, args, null);
+					osl.manager.basic.StreamErrorActorImpl.class, args, null);
 			nextReq.originator = self;
 			context.stderr = mgrActorCreate(ourManager, nextReq);
 		}
@@ -508,13 +491,13 @@ public class BasicActorImpl extends ActorImpl {
 				if (!mailQueue.empty() && messageCount < MAX_MESSAGES) {
 					// Get the next message to process and call our actor
 					nextMsg = (ActorMsgRequest) mailQueue.dequeue();
-					
+
 					// If this is true, then the actor is garbage and should exit the thread
 					// execution loop so it may be garbage collected by the JVM GC.
 					if (nextMsg.method.equals("GC")) {
 						return;
 					}
-
+					
 					processMessage(nextMsg);
 					// reusableMsgObj = nextMsg;
 					messageCount++;
@@ -568,18 +551,6 @@ public class BasicActorImpl extends ActorImpl {
 				mgrActorFatalError(ourManager, new RemoteCodeException(
 						"Error in run loop of ActorImpl:", e));
 		}
-	}
-	
-	/**
-	 * This function populates the acquaintances list of this actor by peeking into
-	 * the internal structure of the actorclass that this impl is managing.
-	 * This makes the assumption that the actor class holds these references directly 
-	 * in ActorName type fields or in List/Queue/Hashmaps.  This function is unable
-	 * to detect references embedded in any other structure including other Actors.
-	 */
-	protected void getAquaintances() {
-		String test = actorClass.getName();
-		System.out.println(test);
 	}
 
 	/**

@@ -49,12 +49,6 @@ public abstract class ActorManager implements RemoteActorManager {
 	 */
 	protected Scheduler actorScheduler = null;
 	protected static ActorManager instance = null;
-	
-	protected boolean garbageCollector = false;
-	
-	public void setCollector() {
-		this.garbageCollector = true;
-	}
 
 	/**
 	 * Initialize a new actor manager. This method should be called before the
@@ -121,7 +115,6 @@ public abstract class ActorManager implements RemoteActorManager {
 				&& !(actor instanceof StreamErrorActorImpl)) {
 			actor.resume();
 		}
-		// actorScheduler.scheduleThread(actor);
 	}
 
 	/**

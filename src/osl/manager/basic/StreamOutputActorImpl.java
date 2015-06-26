@@ -475,7 +475,6 @@ public class StreamOutputActorImpl extends ActorImpl implements
 					mName = nextMsg.method;
 					mArgs = nextMsg.methodArgs;
 					rVal = null;
-
 					try {
 						// Figure out which method to process based on the
 						// arguments and make the appropriate call. This is

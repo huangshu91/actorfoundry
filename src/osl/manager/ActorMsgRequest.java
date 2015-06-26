@@ -29,9 +29,22 @@ public class ActorMsgRequest extends ActorRequest {
 	 */
 	public ActorName receiver;
 
-	public static enum MESSAGE_TYPE {
-		OLD, GC, GCINV, NEW
+	//TODO marker
+	public static enum GC_TYPE {
+		NA, GC, GCINV, NEW, STOP, BACKPROP, FINISH
 	}
+	
+	//TODO marker
+	public static enum MSG_COLOR {
+		NA, NEW, OLD
+	}
+	
+	//TODO marker
+	public static long GENERATION = 0;
+	
+	//TODO marker
+	public ActorMsgRequest.GC_TYPE msgtype = ActorMsgRequest.GC_TYPE.NA;
+	public ActorMsgRequest.MSG_COLOR msgcolor = ActorMsgRequest.MSG_COLOR.NA;
 	
 	/**
 	 * The method to be invoked on the receiver.

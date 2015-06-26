@@ -135,6 +135,21 @@ public class Queue<T> implements Cloneable, Serializable {
 		else
 			return null;
 	}
+	
+	synchronized public T peekNth(int n) {
+		T toReturn = null;
+		
+		if (numElements() < n -1) {
+			return null;
+		}
+		
+		if (!empty()) {
+			int index = (front + n) % theQ.length;
+			toReturn = (T) theQ[index];
+		}
+		
+		return toReturn;
+	}
 
 	/**
 	 * Determine how many objects are currently stored in the queue.
