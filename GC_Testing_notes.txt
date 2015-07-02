@@ -1,0 +1,11 @@
+GC Testing
+
+a) root is never collected anyways, okay to have it "wait" as timer.
+
+1) root creates N local and M remote childrenOne which are the first set.  Then waits for a certain amount of time.
+    
+2) each of the childrenOne (should not be collected yet because known by root) create a set of their own children, childrentwo.  
+
+3)   
+
+if local gc, do not add acq or invacq which are non-local

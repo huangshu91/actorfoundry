@@ -124,7 +124,12 @@ public class BasicActorImpl extends ActorImpl {
 	public volatile int numAcks = 0;
 	public volatile boolean currentlyGC = false;
 	
-	public static int TENURE_THRESHOLD = 3;
+	public static boolean DEBUG = false;
+	
+	public static int TENURE_THRESHOLD = 2;
+	
+	//due to when this is set, the actor requires TENURE_THRESHOLD to reach 
+	//oldspace but afterwards drops out in TENURE_THRESHOLD-1 gc's.
 	public int survivedGC = 0;
     
     public static enum GC_STATUS {
@@ -146,7 +151,8 @@ public class BasicActorImpl extends ActorImpl {
 	private static Object[] zeroArray = new Object[0];
     
     //TODO marker
-	public void getAquaintances(long gen, Hashtable<ActorName, BasicActorImpl> locals) {
+	public void getAquaintances(long gen, boolean isloc, 
+			Hashtable<ActorName, BasicActorImpl> locals) {
 		try {
 			reqAcks = 0;
 			numAcks = 0;
@@ -160,15 +166,11 @@ public class BasicActorImpl extends ActorImpl {
 			actorbase.setAccessible(true);
 			Object actorobj = actorbase.get(actorExecutor);
 			Class<?> aClass = actorbase.get(actorExecutor).getClass();
-			System.out.println(aClass);
+			if (DEBUG) System.out.println(aClass);
 			
 			Field[] privFields = aClass.getDeclaredFields();
-			Field[] pubFields = aClass.getFields();
 			
-			//System.out.println("num privfields: " + privFields.length);
-			//System.out.println("num pubfields: " + pubFields.length);
-			extractAquaintances(privFields, actorobj);
-			extractAquaintances(pubFields, actorobj);
+			extractAquaintances(privFields, actorobj, isloc, locals);
 			
 			/*
 			if (isActive()) {
@@ -178,8 +180,16 @@ public class BasicActorImpl extends ActorImpl {
 			}
 			*/
 			
-			reqAcks = GCacq.size() + GCinvacq.size();
-			System.out.println("reqAcks: " + reqAcks);
+			//reqAcks = GCacq.size() + GCinvacq.size();
+			if (DEBUG) System.out.println("reqAcks: " + reqAcks);
+			
+			//let all our acq know that they should add this actor as invacq
+			for (ActorName acq : GCacq) {
+				ActorMsgRequest msg = new ActorMsgRequest(self, 
+    					acq, "test", new Object[0] );
+    			msg.msgtype = ActorMsgRequest.GC_TYPE.INVACQ;
+				mgrActorSend(ourManager, msg);
+			}
 			
 		} catch (Exception e) {
 			System.out.println("error thrown in getAquaintances");
@@ -188,7 +198,8 @@ public class BasicActorImpl extends ActorImpl {
 	}
 	
 	//TODO marker
-	public void extractAquaintances(Field[] fields, Object actorobj) throws Exception {
+	public void extractAquaintances(Field[] fields, Object actorobj, boolean isloc,
+			Hashtable<ActorName, BasicActorImpl> locals) throws Exception {
 		//System.out.println("extract Aquaintances");
 		for (Field f : fields) {
 			f.setAccessible(true);
@@ -198,8 +209,23 @@ public class BasicActorImpl extends ActorImpl {
 			//System.out.println("test field: " + f.getName());
 			
 			if (fieldObj instanceof ActorName && fieldObj != null) {
-				//System.out.println("FOUND: "+f.getName());
-				GCacq.add((ActorName) fieldObj);
+				//if (DEBUG) System.out.println("FOUND: "+f.getName());
+				ActorName name = (ActorName) fieldObj;
+				//if local gc, check if local actor before adding
+				//if (DEBUG) System.out.println("isLoc: " + isloc + " ::: " + name);
+				if (!GCacq.contains(name)) {
+				if (isloc) {
+					if (locals.containsKey(name)) {
+						GCacq.add(name);
+						reqAcks++;
+					}
+				}
+				else {
+					//global gc, add always
+					GCacq.add(name);
+					reqAcks++;
+				}
+				}
 			}
 			
 			if (base instanceof ParameterizedType && fieldObj != null) {
@@ -213,7 +239,23 @@ public class BasicActorImpl extends ActorImpl {
 					//System.out.println("coll has n objects: "+actualval.size());
 					
 					for (Object o : actualval) {
-						GCacq.add((ActorName) o);
+						ActorName name = (ActorName) o;
+						//if (DEBUG) System.out.println("FOUND: "+f.getName());
+						//if (DEBUG) System.out.println("isLoc: " + isloc + " ::: " + name);
+						//if local gc, check if local actor before adding
+						if (!GCacq.contains(name)) {
+						if (isloc) {
+							if (locals.containsKey(name)) {
+								GCacq.add(name);
+								reqAcks++;
+							}
+						}
+						else {
+							//global gc, add always
+							GCacq.add(name);
+							reqAcks++;
+						}
+						}
 					}
 				}
 			}
@@ -227,7 +269,6 @@ public class BasicActorImpl extends ActorImpl {
 		if (!mailQueue.empty()) {
 			for (int i = 0; i < mailQueue.numElements(); i++) {
 				ActorMsgRequest msg = (ActorMsgRequest) mailQueue.peekNth(i);
-				
 				peekMessage(msg);
 			}
 		}
@@ -521,7 +562,7 @@ public class BasicActorImpl extends ActorImpl {
 					// however the message means that the thread should stop execution
 					// the thread will be removed from the scheduler.  
 					if (nextMsg.msgtype == ActorMsgRequest.GC_TYPE.STOP){
-						System.out.println("STOPPED: " + self);
+						if (DEBUG) System.out.println("STOPPED: " + self);
 						return;
 					}
 
@@ -756,17 +797,25 @@ public class BasicActorImpl extends ActorImpl {
 		
 		try {
 			
+		//if message is a INVACQ then add sender to invacq and discard message.
+		if (msg.msgtype == ActorMsgRequest.GC_TYPE.INVACQ){
+			if (!GCinvacq.contains(msg.sender)) {
+				GCinvacq.add(msg.sender);
+			}
+			return;
+		}
+			
 		//check if the message involves garbage collection.
 		//if so do not enqueue and instead handle differently.
 		if (msg.msgtype == ActorMsgRequest.GC_TYPE.GC) {
-			System.out.println(self.toString() + " : has received a GC message");
+			if (DEBUG) System.out.println(self.toString() + " : has received a GC message");
 			
 			// acquaintances of root and future sets have already been explored.
 			// if actor's generation tag is the future tag and send backprop
 			if (actorGCSet == BasicActorImpl.GC_SET.ROOT || 
 				actorGCSet == BasicActorImpl.GC_SET.OLDSPACE ||
 				gcGen > ActorMsgRequest.GENERATION ){
-				System.out.println("ROOT/OLDSPACE received GC::return");
+				if (DEBUG) System.out.println("ROOT/OLDSPACE received GC::return");
 				msg.msgtype = ActorMsgRequest.GC_TYPE.BACKPROP;
 				msg.receiver = msg.sender;
 				msg.sender = self;
@@ -779,16 +828,16 @@ public class BasicActorImpl extends ActorImpl {
 			return;
 		}
 		else if (msg.msgtype == ActorMsgRequest.GC_TYPE.GCINV){
-			System.out.println(self.toString() + " : has received a INV-GC message");
+			if (DEBUG) System.out.println(self.toString() + " : has received a INV-GC message");
 			
 			// acquaintances of root and future sets have already been explored.
 			if (actorGCSet == BasicActorImpl.GC_SET.ROOT || 
 				actorGCSet == BasicActorImpl.GC_SET.OLDSPACE){
-				System.out.println("ROOT/OLDSPACE received GCINV::return");
+				if (DEBUG) System.out.println("ROOT/OLDSPACE received GCINV::return");
 				return;
 			}
 			
-			// if actor's generation tag is the future tag and send backprop
+			// if actor's generation tag is the future tag then send backprop
 			if (gcGen > ActorMsgRequest.GENERATION) { 
 				msg.msgtype = ActorMsgRequest.GC_TYPE.BACKPROP;
 				msg.receiver = msg.sender;
@@ -816,7 +865,7 @@ public class BasicActorImpl extends ActorImpl {
 			return;
 		}
 		else if (msg.msgtype == ActorMsgRequest.GC_TYPE.BACKPROP) {
-			System.out.println(self.toString() + " : has received a BACKPROP message");
+			if (DEBUG) System.out.println(self.toString() + " : has received a BACKPROP message");
 			numAcks++;
 			
 			if (numAcks == reqAcks) {
@@ -826,7 +875,7 @@ public class BasicActorImpl extends ActorImpl {
 					msg.msgtype = ActorMsgRequest.GC_TYPE.BACKPROP;
 					msg.receiver = backpropActor;
 				} else {
-					System.out.println("ROOT or OLDSPACE received all acks");
+					if (DEBUG) System.out.println("ROOT or OLDSPACE received all acks");
 					// you are part of the root set for this generation
 					// send the finish type back to the manager
 					msg.msgtype = ActorMsgRequest.GC_TYPE.FINISH;
@@ -852,7 +901,7 @@ public class BasicActorImpl extends ActorImpl {
 					peekMessage(msg);
 				}
 				else if (msg.msgcolor == ActorMsgRequest.MSG_COLOR.NA){
-					System.out.println("SHOULD NOT HAPPEN, ABORT");
+					if (DEBUG) System.out.println("SHOULD NOT HAPPEN, ABORT");
 					return;
 				}
 			}
@@ -874,7 +923,9 @@ public class BasicActorImpl extends ActorImpl {
 		
 		// change the set to either tenure or future 
 		if (survivedGC >= BasicActorImpl.TENURE_THRESHOLD) {
+			//tenure the actor
 			actorGCSet = BasicActorImpl.GC_SET.OLDSPACE;
+			survivedGC = 0;
 		} else {
 			//incrementing gcGen is same as indicating future space
 			gcGen++;
@@ -922,13 +973,18 @@ public class BasicActorImpl extends ActorImpl {
 	
 	//TODO marker
 	private void peekMessage(ActorMsgRequest msg) {
-		GCinvacq.add(msg.sender);
+		if (!GCinvacq.contains(msg.sender)) {
+			GCinvacq.add(msg.sender);
+		}
 		
 		//check the parameters of the message for ActorNames
 		for (Object param : msg.methodArgs){
 			//short circuit to make sure the object is valid
 			if (param != null && param.getClass().equals(ActorName.class)) {
-				GCacq.add((ActorName) param);
+				ActorName name = (ActorName) param;
+				if (!GCacq.contains(name)) {
+					GCacq.add(name);
+				}
 			}
 		}
 	}

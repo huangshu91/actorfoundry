@@ -31,7 +31,7 @@ public class ActorMsgRequest extends ActorRequest {
 
 	//TODO marker
 	public static enum GC_TYPE {
-		NA, GC, GCINV, NEW, STOP, BACKPROP, FINISH
+		NA, GC, GCINV, NEW, STOP, BACKPROP, FINISH, INVACQ
 	}
 	
 	//TODO marker

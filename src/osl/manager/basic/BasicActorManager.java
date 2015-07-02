@@ -144,6 +144,8 @@ public class BasicActorManager extends ActorManager {
     protected int numAcks = 0;
     protected int numRoot = 0;
     
+    public static boolean DEBUG = false;
+    
     protected ArrayList<ActorManagerName> distNodes = null;
 
 	/**
@@ -288,6 +290,7 @@ public class BasicActorManager extends ActorManager {
 	 *                thrown asynchronously (e.g. when performing a remote
 	 *                create).
 	 */
+	//TODO marker
 	protected ActorName actorCreate(ActorImpl caller, ActorCreateRequest request)
 			throws SecurityException, RemoteCodeException {
 
@@ -316,7 +319,13 @@ public class BasicActorManager extends ActorManager {
 				// PRAGMA
 				// [debug,osl.manager.ActorManager,osl.manager.basic.BasicActorManager]
 				// Log.println("Sending remote request to create actor");
+				
+				// add the remote manager to our list of known remotes if not already known
+				if (!distNodes.contains(target)) {
+					distNodes.add(target);
+				}
 
+				//TODO marker
 				ActorName created = (ActorName) session.handlerRPCRequest(
 						target.managerName, "managerCreate", request, null);
 
@@ -373,8 +382,8 @@ public class BasicActorManager extends ActorManager {
 						((BasicActorImpl)newImp).actorGCSet = BasicActorImpl.GC_SET.ROOT;
 					}
 					localActors.put(newAct, (BasicActorImpl) newImp);
-					System.out.println(request.behToCreate.getName());
-					System.out.println(newAct);
+					//System.out.println(request.behToCreate.getName());
+					//System.out.println(newAct);
 					//System.out.println(request.implToCreate.getName());
 				}
 			}
@@ -498,7 +507,7 @@ public class BasicActorManager extends ActorManager {
 		//TODO marker
 		if (message.msgtype == ActorMsgRequest.GC_TYPE.FINISH){
 			numAcks++;
-			System.out.println("received a finish GC message");
+			if (DEBUG) System.out.println("received a finish GC message");
 			if (numAcks == numRoot) {
 				GCthread.scavengeComplete();
 			}
@@ -1082,7 +1091,7 @@ public class BasicActorManager extends ActorManager {
 			session.handlerRegister(newName);
 			
 			//TODO marker
-			System.out.println(request.behToCreate.getName());
+			//System.out.println(request.behToCreate.getName());
 			receptionists.put(newAct, newImp);
 			synchronized(localActors) {
 				if (request.isRoot){ 
@@ -1604,9 +1613,16 @@ public class BasicActorManager extends ActorManager {
 	
 	//TODO marker
 	void startGC() {
-        actorScheduler.scheduleThread(new Thread(GCthread, 
-              "garbageCollectorThread"));
+        //actorScheduler.scheduleThread(new Thread(GCthread, "garbageCollectorThread"));
     }
+	
+	//TODO marker
+	public boolean isRemote(ActorName check) {
+		if (localActors.containsKey(check)) {
+			return true;
+		}
+		return false;
+	}
 
 	/**
 	 * This method grabs the next free <em>ServiceThread</em> from the
@@ -1651,6 +1667,10 @@ public class BasicActorManager extends ActorManager {
         public volatile boolean scavengeFin = false;
         public volatile boolean GCFin = false;
         public volatile long gcGeneration = 0;
+        public volatile boolean localGC = true;
+        
+        public volatile long startTime = 0;
+        public volatile long endTime = 0;
         
         @Override
         public void run() {
@@ -1665,19 +1685,23 @@ public class BasicActorManager extends ActorManager {
                     }
                     //debug
                     /*
-                    if (gcGeneration > 0) {
+                    if (gcGeneration > 4) {
                     	return;
-                    }
-                    */
+                    }*/
+                    
+                    startTime = System.currentTimeMillis();
                     
                     currentlyGC = true;
                     GCFin = false;
                     scavengeFin = false;
+                    //TODO marker
+                    localGC = true;
                     numAcks = 0;
                     numRoot = 0;
+                    int numTenure = 0;
                     
                     
-                    System.out.println("elapsed time, GC starting");
+                    System.out.println("elapsed time, GC starting: " + System.currentTimeMillis());
                     
                     // global snapshot 
                     
@@ -1687,42 +1711,55 @@ public class BasicActorManager extends ActorManager {
                     // set all untouched except for tenured and root set.
                     // set currentlygc of all to true so msgs are correct tag.
                     synchronized(localActors) {
-                    	System.out.println(localActors.size());
+                    	System.out.println("num local actors: " + localActors.size());
                     	for (ActorName key : localActors.keySet()) {
                     		BasicActorImpl impl = localActors.get(key);
-                    		System.out.println(impl.toString());
-                    		System.out.println(key.toString());
+                    		if (DEBUG) System.out.println(impl.toString());
+                    		if (DEBUG) System.out.println(key.toString());
                     		if (impl.actorGCSet == BasicActorImpl.GC_SET.ROOT ){
                     			// root actor always touched
                     			impl.actorGCStatus = BasicActorImpl.GC_STATUS.TOUCHED;
-                    			System.out.println("root actor");
+                    			if (DEBUG) System.out.println("root actor");
                     			numRoot++;
                     		} 
-                    		else if (impl.gcGen > gcGeneration) { 
+                    		else if (impl.actorGCSet == BasicActorImpl.GC_SET.OLDSPACE) { 
                     			// if the actor is tenured
                     			impl.actorGCStatus = BasicActorImpl.GC_STATUS.TOUCHED;
-                    			System.out.println("tenured actor");
-                    			numRoot++;
+                    			impl.gcGen++;
+                    			if (DEBUG) System.out.println("tenured actor");
+                    			//do not need to add as root because we wont 
+                    			//receive a finish message back
+                    			//numRoot++;
+                    			numTenure++;
                     		}
                     		else {
                     			impl.actorGCStatus = BasicActorImpl.GC_STATUS.UNTOUCHED;
-                    			impl.actorGCSet = BasicActorImpl.GC_SET.SCAVENGE;
+                    			//impl.actorGCSet = BasicActorImpl.GC_SET.SCAVENGE;
                     		}
+                    		
+                    		//handle external actors as touched if it is local GC
+                    		if (localGC && receptionists.containsKey(key)) {
+                    			impl.actorGCStatus = BasicActorImpl.GC_STATUS.TOUCHED;
+                    			impl.gcGen++;
+                    		}
+                    		
                     		impl.currentlyGC = true;
-                    		impl.getAquaintances(gcGeneration, localActors);
-                    		System.out.println("has n acq: " + impl.GCacq.size());
+                    		impl.getAquaintances(gcGeneration, localGC, localActors);
+                    		if (DEBUG) System.out.println("has n acq: " + impl.GCacq.size());
                         }
                     }
                     
                     System.out.println(numRoot + " :: in the root set");
+                    System.out.println(numTenure + " :: in the tenure set");
                     
                     //TODO Send all aquaintances of the root set (+ tenure set) a
                     // GC message
                     synchronized (localActors) {
                     for (ActorName key : localActors.keySet()) {
                     	BasicActorImpl impl = localActors.get(key);
-                    	if (impl.actorGCSet == BasicActorImpl.GC_SET.ROOT 
-                    			|| impl.gcGen > gcGeneration) {
+                    	//if (impl.actorGCSet == BasicActorImpl.GC_SET.ROOT 
+                    	//		|| impl.actorGCSet == BasicActorImpl.GC_SET.OLDSPACE) {
+                    	if (impl.actorGCStatus == BasicActorImpl.GC_STATUS.TOUCHED) {
                     		// root set begins the chain of gc messages
                     		
                     		for (ActorName acq : impl.GCacq){
@@ -1742,11 +1779,11 @@ public class BasicActorManager extends ActorManager {
                     if (numRoot == 0) scavengeComplete();
                     
                     while (!scavengeFin) {
-                    	System.out.println("GC received: " + numAcks + "/" + numRoot);
-                    	Thread.sleep(500);
+                    	if (DEBUG) System.out.println("GC received: " + numAcks + "/" + numRoot);
+                    	Thread.sleep(250);
                     }
                     
-                    System.out.println("received all acks from root set");
+                    if (DEBUG) System.out.println("received all acks from root set");
                     
                     // if you are the node that started the gc phase, send gc termination
                     // message to all other nodes.
@@ -1756,7 +1793,7 @@ public class BasicActorManager extends ActorManager {
                     
                     while (!GCFin) {
                     	System.out.println("Waiting GC termination messages from other nodes");
-                    	Thread.sleep(500);
+                    	Thread.sleep(250);
                     }
                     
                     // set actors as garbage by checking set if untouched or suspended 
@@ -1767,16 +1804,25 @@ public class BasicActorManager extends ActorManager {
                     	for (ActorName key : localActors.keySet()) {
                     		BasicActorImpl impl = localActors.get(key);
                     		impl.currentlyGC = false;
+                    		impl.survivedGC++;
                     		if (impl.actorGCStatus == BasicActorImpl.GC_STATUS.UNTOUCHED
                     				|| impl.actorGCStatus == BasicActorImpl.GC_STATUS.SUSPENDED) {
                     			// remove from local actors and from scheduler
                     			garbage.put(key, impl);
                     		}
+                    		impl.actorGCStatus = BasicActorImpl.GC_STATUS.UNTOUCHED;
+                    		
+                    		//if tenured but has survived for another TENURE_THRESHOLD, drop to scavenge
+                    		if (impl.actorGCSet == BasicActorImpl.GC_SET.OLDSPACE && 
+                    				impl.survivedGC > BasicActorImpl.TENURE_THRESHOLD) {
+                				impl.actorGCSet = BasicActorImpl.GC_SET.SCAVENGE;
+                				impl.survivedGC = 0;
+                    		}
                     	}
                     	
                     	for (ActorName key : garbage.keySet()) {
                     		//TODO marker
-                    		System.out.println("removing garbage actor: " + key);
+                    		if (DEBUG) System.out.println("removing garbage actor: " + key);
                     		
                     		localActors.remove(key);
                     		if (externals.containsKey(key)) {
@@ -1794,12 +1840,17 @@ public class BasicActorManager extends ActorManager {
                     		stopmsg.msgtype = ActorMsgRequest.GC_TYPE.STOP;
                     		actorSend(garbage.get(key), stopmsg);
                     	}
+                    	
+                    	System.out.println("total garbage actors: " + garbage.size());
                     }
                     
                     lastGC = System.currentTimeMillis();
                     currentlyGC = false;
                     gcGeneration++;
                     ActorMsgRequest.GENERATION = gcGeneration;
+                    
+                    endTime = System.currentTimeMillis();
+                    System.out.println("GC GEN: "+ (gcGeneration-1) + " :: TOOK "+ (endTime - startTime));
                 }
             } catch (Throwable e) {
             	System.out.println(e.getLocalizedMessage());
@@ -1807,6 +1858,14 @@ public class BasicActorManager extends ActorManager {
             	System.out.println(e.getMessage());
             	startGC();
             }
+        }
+        
+        public void receiveGC() {
+        	synchronized(localActors) {
+        		for (ActorName key : localActors.keySet()) {
+        			
+        		}
+        	}
         }
         
         public boolean isCollecting() {
@@ -2093,6 +2152,7 @@ public class BasicActorManager extends ActorManager {
 		System.out.println(actor + " is escaping, size of table "
 				+ receptionists.size());
 		receptionists.put(actor, actor.getActor());
+		externals.put(actor, (BasicActorImpl) actor.getActor());
 		try {
 			session.handlerRegister(actor.getName());
 		} catch (MalformedNameException e) {
