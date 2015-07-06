@@ -132,12 +132,15 @@ public class DistFibActor extends Actor {
 			ActorName newChild1 = null;
 
 			// TODO remove the hardcoded threshold and address
-			if (val == 28) {
+			if (val == 7) {
 				try {
+					System.out.println("test");
 					ActorManagerName remoteManager = (ActorManagerName) invokeService(
 							YP.name, "ypLookupRemoteManager", lbNode);
 					newChild1 = create(remoteManager, SimpleFibActor.class,
 							self(), "result");
+					System.out.println("test2");
+
 				} catch (Exception e) {
 					newChild1 = create(DistFibActor.class, self(), "result",
 							lbNode);

@@ -34,7 +34,7 @@ public class GCRoot extends Actor{
     	isRemote = true;
         //send(stdout, "println", "worldthree!");
         remoteAddr = remote;
-        send(stdout, "println", "testing remote boot");
+        System.out.println("remote boot");
         //return;
         
         try {
@@ -44,7 +44,14 @@ public class GCRoot extends Actor{
 			for (int i = 0; i < GCRoot.NUM_REMOTE; i++) {
 	            ActorName remChild = create(remoteName, GCChild.class);
 	            remoteconns.add(remChild);
+                //send(remChild, "initialize");
 	        }
+
+            for (int i = 0; i < GCRoot.NUM_LOCAL; i++) {
+                ActorName locChild = create(GCChild.class);
+                localconns.add(locChild);
+                //send(locChild, "initialize", remote);
+            }
 			
 			//no local for now
 			
@@ -53,11 +60,16 @@ public class GCRoot extends Actor{
 		} catch (ServiceException e) {
 			e.printStackTrace();
 		}
+
+        System.out.println("done booting");
+        send(localconns.get(0), "START");
     }
 
     //local only tests
     @message
     public void boot() throws RemoteCodeException {
+        System.out.println("local boot");
+
         for (int i = 0; i < GCRoot.NUM_LOCAL; i++) {
             ActorName t_one = create(GCChild.class);
             localconns.add(t_one);
@@ -74,16 +86,15 @@ public class GCRoot extends Actor{
         		Thread.sleep(5000); //wait 5s between each topology change
         		
         		System.out.println("iterate time: " + System.currentTimeMillis());
-        		//call(stdout, "println", "iterate time: " + System.currentTimeMillis());
         		
         		//drop some local conns, send rest an iterate message
         		for (int j = 0; j < localconns.size(); j++) {
-        			//send(localconns.get(j), "iterate");
+        			send(localconns.get(j), "iterate");
         		}
         		
         		for (int j = 0; j < NUM_CYCLE; j++) {
         			ActorName cycle = create(GCChild.class);
-        			//send(cycle, "createCycle");
+        			send(cycle, "createCycle");
         		}
         		
         		//drop some remote conns, send rest an iterate message

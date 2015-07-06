@@ -27,6 +27,8 @@ public class ActorCreateRequest extends ActorRequest {
 	
 	public long generation = 0;
 
+	public String gctype = "";
+
 	/**
 	 * The class of the new actor requested. This should be a subclass of
 	 * <em>Actor</em>.
@@ -205,6 +207,9 @@ public class ActorCreateRequest extends ActorRequest {
 		out.writeUTF(behToCreateName);
 		out.writeUTF(implToCreateName);
 
+		out.writeLong(generation);
+		out.writeUTF(gctype);
+
 		out.writeObject(constructorArgs);
 		out.writeObject(site);
 		out.writeObject(context);
@@ -252,6 +257,9 @@ public class ActorCreateRequest extends ActorRequest {
 		implToCreateName = in.readUTF();
 		behToCreate = Class.forName(behToCreateName);
 		implToCreate = Class.forName(implToCreateName);
+
+		generation = in.readLong();
+		gctype = in.readUTF();
 
 		// PRAGMA [debug,osl.manager.ActorCreateRequest]
 		// Log.println("<ActorCreateRequest.readExternal> HERE 4");

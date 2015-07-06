@@ -147,6 +147,7 @@ public class BasicActorManager extends ActorManager {
     public static boolean DEBUG = false;
     
     protected ArrayList<ActorManagerName> distNodes = null;
+    protected ArrayList<ActorName> distNames = null;
 
 	/**
 	 * The default constructor. Initialize all fields that can be initialized
@@ -159,6 +160,7 @@ public class BasicActorManager extends ActorManager {
 		localActors = new Hashtable<ActorName, BasicActorImpl>();
 		externals = new Hashtable<ActorName, BasicActorImpl>();
 		distNodes = new ArrayList<ActorManagerName>();
+		distNames = new ArrayList<ActorManagerName>();
 		
 		localServices = new Hashtable<ServiceName, Service>();
 		requestMap = new Hashtable<RequestID, ActorMsgRequest>();
@@ -230,7 +232,7 @@ public class BasicActorManager extends ActorManager {
 
 			// Last, start our cleanup thread running
 			startCleanup();
-			startGC();
+			//startGC();
 
 		} catch (Exception e) {
 			// Any exception here gets packaged and thrown as a request
@@ -1038,6 +1040,16 @@ public class BasicActorManager extends ActorManager {
 			// "Received remote create request: " + request + " request name: "
 			// + reqName);
 
+			if (request.gctype.equals("DISCOVER")) {
+				System.out.println("Discover received");
+				try {
+					return defaultActorName;
+				}
+				catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+
 			// First verify that the requested behavior really is an actor
 			if (!(Actor.getClassRef().isAssignableFrom(request.behToCreate)))
 				throw new IllegalAccessException(
@@ -1096,6 +1108,7 @@ public class BasicActorManager extends ActorManager {
 			synchronized(localActors) {
 				if (request.isRoot){ 
 					((BasicActorImpl)newImp).actorGCSet = BasicActorImpl.GC_SET.ROOT;
+					GCthread.masterGC = true;
 				}
 				System.out.println(newAct);
 				((BasicActorImpl)newImp).gcGen = GCthread.gcGeneration;
@@ -1187,6 +1200,12 @@ public class BasicActorManager extends ActorManager {
 		// If the target is "defaultActorName" then just log the message.
 		// The "defaultActorName" is a dummy name which can't receive any
 		// messages.
+
+		if (del.method.equals("START")) {
+			System.out.println("start gc");
+			startGC();
+		}
+
 		if (del.receiver.equals(defaultActorName)) {
 			// Log.println(FoundryStart.sysLog,
 			// "<BasicActorManager.actorSend> Default name received message: " +
@@ -1613,6 +1632,23 @@ public class BasicActorManager extends ActorManager {
 	
 	//TODO marker
 	void startGC() {
+		ActorCreateRequest nextReq;
+		Object[] args = new Object[1];
+		args[0] = "DISCOVER";
+		for (int i = 0; i < distNodes.size(); i++) {
+			System.out.println("check distnode "+i+ " :: "+distNodes.get(i));
+			args = new Object[1];
+			args[0] = "out";
+			nextReq = new ActorCreateRequest(self, Class
+					.forName("osl.manager.Actor"),
+					osl.manager.basic.StreamInputActorImpl.class, args,
+					null);
+			nextReq.originator = self;
+			ActorName distname = (ActorName) session.handlerRPCRequest(
+						target.managerName, "managerCreate", request, null);
+			distNames.add(distname);
+		}
+
         //actorScheduler.scheduleThread(new Thread(GCthread, "garbageCollectorThread"));
     }
 	
@@ -1671,23 +1707,30 @@ public class BasicActorManager extends ActorManager {
         
         public volatile long startTime = 0;
         public volatile long endTime = 0;
+
+        public volatile boolean masterGC = false;
+        public volatile boolean slaveGC = false;
         
         @Override
         public void run() {
             try {
-                //Thread.sleep(1000); //sleep 500ms so actors have begun to run
                 while(true) {
-                    Thread.sleep(GC_PERIOD);
-                    long elapsed = System.currentTimeMillis() - lastGC;
-                    //System.out.println("elapsed time: " + elapsed);
-                    if (elapsed < GC_PERIOD) {
-                        Thread.sleep(GC_PERIOD - elapsed);
-                    }
-                    //debug
-                    /*
-                    if (gcGeneration > 4) {
-                    	return;
-                    }*/
+
+                	//if you're not mastergc, then sleep until you receive GC broadcast
+                	if (!masterGC) {
+                		while (!currentlyGC) {
+                			Thread.sleep(250);
+                		}
+                	}
+
+                	if (masterGC) {
+                		Thread.sleep(GC_PERIOD);
+                    	long elapsed = System.currentTimeMillis() - lastGC;
+                    	//System.out.println("elapsed time: " + elapsed);
+                    	if (elapsed < GC_PERIOD) {
+                        	Thread.sleep(GC_PERIOD - elapsed);
+                    	}
+                	}
                     
                     startTime = System.currentTimeMillis();
                     
@@ -1705,7 +1748,10 @@ public class BasicActorManager extends ActorManager {
                     
                     // global snapshot 
                     
-                    // send out GC begin messages
+                    // send out GC begin broadcast messages
+                    for (ActorManagername remman : distnodes) {
+
+                    }
                     
                     // initialize GC state.  
                     // set all untouched except for tenured and root set.
@@ -2152,7 +2198,7 @@ public class BasicActorManager extends ActorManager {
 		System.out.println(actor + " is escaping, size of table "
 				+ receptionists.size());
 		receptionists.put(actor, actor.getActor());
-		externals.put(actor, (BasicActorImpl) actor.getActor());
+		//externals.put(actor, (BasicActorImpl) actor.getActor());
 		try {
 			session.handlerRegister(actor.getName());
 		} catch (MalformedNameException e) {
