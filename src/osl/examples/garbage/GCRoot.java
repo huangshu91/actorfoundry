@@ -22,8 +22,8 @@ public class GCRoot extends Actor{
     
     public boolean isRemote = false;
 
-    public static int NUM_LOCAL = 100;
-    public static int NUM_REMOTE = 5;
+    public static int NUM_LOCAL = 0;
+    public static int NUM_REMOTE = 1;
     public static int NUM_CYCLE = 10;
     
     public static int NUM_ITERATION = 10;
@@ -32,7 +32,6 @@ public class GCRoot extends Actor{
     @message
     public void boot(String remote) throws RemoteCodeException {
     	isRemote = true;
-        //send(stdout, "println", "worldthree!");
         remoteAddr = remote;
         System.out.println("remote boot");
         //return;
@@ -44,13 +43,13 @@ public class GCRoot extends Actor{
 			for (int i = 0; i < GCRoot.NUM_REMOTE; i++) {
 	            ActorName remChild = create(remoteName, GCChild.class);
 	            remoteconns.add(remChild);
-                //send(remChild, "initialize");
+                send(remChild, "initialize");
 	        }
 
             for (int i = 0; i < GCRoot.NUM_LOCAL; i++) {
                 ActorName locChild = create(GCChild.class);
                 localconns.add(locChild);
-                //send(locChild, "initialize", remote);
+                send(locChild, "initialize");
             }
 			
 			//no local for now

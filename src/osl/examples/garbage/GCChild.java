@@ -17,8 +17,8 @@ public class GCChild extends Actor{
 
     public ArrayList<ActorName> remoteconns = new ArrayList<ActorName>();
 
-    public static int NUM_LOCAL = 100;
-    public static int NUM_REMOTE = 10;
+    public static int NUM_LOCAL = 0;
+    public static int NUM_REMOTE = 0;
     public static int CHURN_RATE = 5;
 
     public static int REM_CHURN = 1;
@@ -40,15 +40,16 @@ public class GCChild extends Actor{
     //remote initialize
     @message
     public void initialize(ActorManagerName rem) throws RemoteCodeException {
+        System.out.println("initialize remote child");
     	for (int i = 0; i < GCChild.NUM_LOCAL; i++) {
-    		ActorName gcset = create(GCChild.class);
-    		localconns.add(gcset);
+    		//ActorName gcset = create(GCChild.class);
+    		//localconns.add(gcset);
     	}
     	
         try {
     	    for (int i = 0; i < GCChild.NUM_REMOTE; i++) {
-    		    ActorName remgcset = create(rem, GCChild.class);
-                remoteconns.add(remgcset);
+    		    //ActorName remgcset = create(rem, GCChild.class);
+                //remoteconns.add(remgcset);
     	    }
         } catch (Exception e) {
             e.printStackTrace();

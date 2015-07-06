@@ -140,7 +140,8 @@ public class ActorMsgRequest extends ActorRequest {
 	public String toString() {
 		return "<ActorMsgRequest: " + super.toString() + " sender=" + sender
 				+ " receiver=" + receiver + " method=" + method + " numArgs="
-				+ methodArgs.length + " rpc?=" + RPCRequest + ">";
+				+ methodArgs.length + " rpc?=" + RPCRequest + " gen= " + GENERATION
+				+ " msgtype= " + msgtype.name() + " msgcolor= " + msgcolor.name() + ">";
 	}
 
 	/**
@@ -240,6 +241,10 @@ public class ActorMsgRequest extends ActorRequest {
 		out.writeUTF(method);
 		out.writeObject(methodArgs);
 		out.writeBoolean(RPCRequest);
+
+		out.writeLong(GENERATION);
+		out.writeInt(msgtype.ordinal());
+		out.writeInt(msgcolor.ordinal());
 	}
 
 	/**
@@ -270,6 +275,10 @@ public class ActorMsgRequest extends ActorRequest {
 		method = in.readUTF();
 		methodArgs = (Object[]) in.readObject();
 		RPCRequest = in.readBoolean();
+
+		GENERATION = in.readLong();
+		msgtype = GC_TYPE.values()[in.readInt()];
+		msgcolor = MSG_COLOR.values()[in.readInt()];
 
 	}
 

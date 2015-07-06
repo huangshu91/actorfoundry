@@ -160,7 +160,7 @@ public class BasicActorManager extends ActorManager {
 		localActors = new Hashtable<ActorName, BasicActorImpl>();
 		externals = new Hashtable<ActorName, BasicActorImpl>();
 		distNodes = new ArrayList<ActorManagerName>();
-		distNames = new ArrayList<ActorManagerName>();
+		distNames = new ArrayList<ActorName>();
 		
 		localServices = new Hashtable<ServiceName, Service>();
 		requestMap = new Hashtable<RequestID, ActorMsgRequest>();
@@ -1204,6 +1204,12 @@ public class BasicActorManager extends ActorManager {
 		if (del.method.equals("START")) {
 			System.out.println("start gc");
 			startGC();
+			return;
+		}
+
+		if (del.method.equals("testgc")) {
+			System.out.println("received testgc message");
+			return;
 		}
 
 		if (del.receiver.equals(defaultActorName)) {
@@ -1632,21 +1638,41 @@ public class BasicActorManager extends ActorManager {
 	
 	//TODO marker
 	void startGC() {
+		/*
 		ActorCreateRequest nextReq;
 		Object[] args = new Object[1];
 		args[0] = "DISCOVER";
 		for (int i = 0; i < distNodes.size(); i++) {
-			System.out.println("check distnode "+i+ " :: "+distNodes.get(i));
+			ActorManagerName rem = distNodes.get(i);
+			System.out.println("check distnode "+i+ " :: "+rem;
 			args = new Object[1];
 			args[0] = "out";
-			nextReq = new ActorCreateRequest(self, Class
+			nextReq = new ActorCreateRequest(defaultActorName, Class
 					.forName("osl.manager.Actor"),
 					osl.manager.basic.StreamInputActorImpl.class, args,
 					null);
-			nextReq.originator = self;
+			nextReq.gctype = "DISCOVER";
+			nextReq.originator = defaultActorName;
 			ActorName distname = (ActorName) session.handlerRPCRequest(
-						target.managerName, "managerCreate", request, null);
+						rem.managerName, "managerCreate", request, null);
 			distNames.add(distname);
+		}
+		*/
+
+		try {
+		synchronized (requestMap) {
+			for (int i = 0; i < distNodes.size(); i++) {
+				ActorManagerName rem = distNodes.get(i);
+				ActorMsgRequest gctest = new ActorMsgRequest(defaultActorName, 
+                    					defaultActorName, "testgc", new Object[0] );
+
+				RequestID trackID = session.handlerRequest(rem.managerName, 
+					"managerDeliver", gctest);
+				requestMap.put(trackID, gctest);
+			}
+		}
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 
         //actorScheduler.scheduleThread(new Thread(GCthread, "garbageCollectorThread"));
@@ -1749,7 +1775,7 @@ public class BasicActorManager extends ActorManager {
                     // global snapshot 
                     
                     // send out GC begin broadcast messages
-                    for (ActorManagername remman : distnodes) {
+                    for (int i = 0; i < distNodes.size(); i++) {
 
                     }
                     
